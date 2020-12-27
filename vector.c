@@ -45,6 +45,13 @@ void multiply3(Vec3 vec, double mul, Vec3 result)
 	result[Z] = vec[Z] * mul;
 }
 
+void multiply3v(Vec3 vec1, Vec3 vec2, Vec3 result)
+{
+	result[X] = vec1[X] * vec2[X];
+	result[Y] = vec1[Y] * vec2[Y];
+	result[Z] = vec1[Z] * vec2[Z];
+}
+
 void divide2(Vec2 vec, double div, Vec2 result)
 {
 	result[X] = vec[X] / div;
@@ -86,10 +93,10 @@ void subtract3(Vec3 vec1, Vec3 vec2, Vec3 result)
 
 void normalize2(Vec2 vec)
 {
-	multiply2(vec, magnitude2(vec), vec);
+	divide2(vec, magnitude2(vec), vec);
 }
 
 void normalize3(Vec3 vec)
 {
-	multiply3(vec, magnitude3(vec), vec);
+	divide3(vec, magnitude3(vec), vec);
 }

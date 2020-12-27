@@ -12,14 +12,26 @@
 #include "vector.h"
 
 #define OBJECT_PARAMS \
-	bool (*intersects)(Line*, Object, double*);\
-	Color color;
+	bool (*intersects)(Object, Line*, double*);\
+	void (*get_normal)(Object, Line*, Vec3, Vec3);\
+	Vec3 ks;  /*specular reflection constant*/\
+	Vec3 kd; /*diffuse reflection constant*/\
+	Vec3 ka; /*ambient reflection constant*/\
+	double alpha; /*shininess constant*/
 
-#define OBJECT_INIT_PARAMS Color color
+#define OBJECT_INIT_PARAMS \
+	Vec3 ks,\
+	Vec3 kd,\
+	Vec3 ka,\
+	double alpha
 
 #define OBJECT_INIT(object) \
 	object->intersects = &intersects_##object;\
-	memcpy(object->color, color, sizeof(Color))
+	object->get_normal = &get_normal_##object;\
+	memcpy(object->ks, ks, sizeof(Vec3));\
+	memcpy(object->kd, kd, sizeof(Vec3));\
+	memcpy(object->ka, ka, sizeof(Vec3));\
+	object->alpha = alpha;
 
 #define EPSILON 1e-6
 
@@ -30,10 +42,12 @@ typedef struct Sphere Sphere;
 typedef struct Triangle Triangle;
 typedef struct Image Image;
 typedef struct Camera Camera;
+typedef struct Light Light;
 typedef struct CommonObject CommonObject;
 typedef union Object Object;
 
 Color background_color = {0, 0, 0};
+Vec3 ambient_light_intensity = {.1, .1, .1};
 
 typedef struct CommonObject {
 	OBJECT_PARAMS
@@ -60,6 +74,7 @@ typedef struct Triangle {//triangle ABC
 	OBJECT_PARAMS
 	Vec3 vertices[3];
 	Vec3 edges[2]; //Vectors BA and CA
+	Vec3 normal;
 } Triangle;
 
 typedef struct Image {
@@ -76,6 +91,11 @@ typedef struct Camera {
 	double focal_length;
 	Image image;
 } Camera;
+
+typedef struct Light {
+	Vec3 position;
+	Vec3 intensity;
+} Light;
 
 typedef union Object {
 	CommonObject *common;

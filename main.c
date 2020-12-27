@@ -34,7 +34,7 @@ void init_camera(Camera *camera,
 	add_3_vectors(plane_center, corner_offset_vectors[X], corner_offset_vectors[Y], camera->image.corner);
 }
 
-bool intersects_sphere(Line *ray, Object object, double *distance)
+bool intersects_sphere(Object object, Line *ray, double *distance)
 {
 	Sphere *sphere = object.sphere;
 	Vec3 relative_position;
@@ -55,7 +55,7 @@ bool intersects_sphere(Line *ray, Object object, double *distance)
 }
 
 //Möller–Trumbore intersection algorithm
-bool intersects_triangle(Line *ray, Object object, double *distance)
+bool intersects_triangle(Object object, Line *ray, double *distance)
 {
 	Triangle *triangle = object.triangle;
 	Vec3 h, s, q;
@@ -79,7 +79,7 @@ bool intersects_triangle(Line *ray, Object object, double *distance)
 		return false;
 }
 
-bool intersects_plane(Line *ray, Object object, double *distance)
+bool intersects_plane(Object object, Line *ray, double *distance)
 {
 	Plane *plane = object.plane;
 	double a = dot3(plane->normal, ray->vector);
@@ -92,14 +92,41 @@ bool intersects_plane(Line *ray, Object object, double *distance)
 		return false;
 }
 
-void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], Vec3 pixel_position, Color pixel)
+void get_normal_plane(Object object, Line *ray, Vec3 position, Vec3 normal)
+{
+	(void)position;
+	Plane *plane = object.plane;
+	if(dot3(plane->normal, ray->vector) < 0)
+		memcpy(normal, plane->normal, sizeof(Vec3));
+	else
+		multiply3(plane->normal, -1, normal);
+}
+
+void get_normal_sphere(Object object, Line *ray, Vec3 position, Vec3 normal)
+{
+	(void)ray;
+	Sphere *sphere = object.sphere;
+	subtract3(position, sphere->position, normal);
+	if(dot3(normal, ray->vector) > 0) //if collision from within sphere
+		multiply3(normal, -1, normal);
+}
+
+void get_normal_triangle(Object object, Line *ray, Vec3 position, Vec3 normal)
+{
+	(void)position;
+	Triangle *triangle = object.triangle;
+	if(dot3(triangle->normal, ray->vector) < 0)
+		memcpy(normal, triangle->normal, sizeof(Vec3));
+	else
+		multiply3(triangle->normal, -1, normal);
+}
+
+void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int num_lights, Light *lights[num_lights], Vec3 pixel_position, Color pixel)
 {
 	Line ray;
 	memcpy(ray.position, camera->position, sizeof(Vec3));
 	subtract3(pixel_position, camera->position, ray.vector);
 	normalize3(ray.vector);
-
-	//intersection point = ray.position + ray.vector * distance
 
 	Object closest_object;
 	closest_object.common = NULL;
@@ -108,17 +135,65 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], Vec3
 	int i;
 	for(i = 0; i < num_objects; i++)
 	{
-		if(objects[i].common->intersects(&ray, objects[i], &distance)) {
+		if(objects[i].common->intersects(objects[i], &ray, &distance)) {
 			if(distance < min_distance) {
 				min_distance = distance;
 				closest_object = objects[i];
 			}
 		}
 	}
-	memcpy(pixel, closest_object.common ? closest_object.common->color : background_color, sizeof(Color));
+	if(closest_object.common) {
+		CommonObject *object = closest_object.common;
+		//Phong reflection model
+		Vec3 color;
+
+		Vec3 point;
+		multiply3(ray.vector, min_distance, point);
+		add3(point, ray.position, point);
+
+		Vec3 normal;
+		object->get_normal(closest_object, &ray, point, normal);
+		normalize3(normal);
+
+		//ambient
+		multiply3v(object->ka, ambient_light_intensity, color);
+
+		for(i = 0; i < num_lights; i++)
+		{
+			Light *light = lights[i];
+
+			//direction from point to light
+			Vec3 inv_incedent;
+			subtract3(light->position, point, inv_incedent);
+			normalize3(inv_incedent);
+
+			double a = dot3(inv_incedent, normal);
+
+			//direction of a reflected ray of light from point
+			Vec3 reflected;
+			multiply3(normal, 2 * a, reflected);
+			subtract3(reflected, inv_incedent, reflected);
+
+			Vec3 diffuse;
+			multiply3v(object->kd, light->intensity, diffuse);
+			multiply3(diffuse, fmax(0., a), diffuse);
+
+			Vec3 specular;
+			multiply3v(object->ks, light->intensity, specular);
+			multiply3(specular, fmax(0., pow(- dot3(reflected, ray.vector), object->alpha)), specular);
+
+			add_3_vectors(color, diffuse, specular, color);
+		}
+
+		multiply3(color, 255., color);
+		pixel[0] = fmax(fmin(color[0], 255.), 0.);
+		pixel[1] = fmax(fmin(color[1], 255.), 0.);
+		pixel[2] = fmax(fmin(color[2], 255.), 0.);
+	} else
+		memcpy(pixel, background_color, sizeof(Color));
 }
 
-void create_image(Camera *camera, int num_objects, Object objects[num_objects])
+void create_image(Camera *camera, int num_objects, Object objects[num_objects], int num_lights, Light *lights[num_lights])
 {
 	int pixel_index = 0;
 	int pixel[2];
@@ -130,7 +205,7 @@ void create_image(Camera *camera, int num_objects, Object objects[num_objects])
 		for(pixel[X] = 0; pixel[X] < camera->image.resolution[X]; pixel[X]++)
 		{
 			add3(pixel_position, camera->image.vectors[X], pixel_position);
-			cast_ray(camera, num_objects, objects, pixel_position, camera->image.pixels[pixel_index]);
+			cast_ray(camera, num_objects, objects, num_lights, lights, pixel_position, camera->image.pixels[pixel_index]);
 			pixel_index++;
 		}
 	}
@@ -142,6 +217,8 @@ void init_triangle(Triangle *triangle, OBJECT_INIT_PARAMS, Vec3 vertices[3])
 	memcpy(triangle->vertices, vertices, sizeof(Vec3[3]));
 	subtract3(vertices[1], vertices[0], triangle->edges[0]);
 	subtract3(vertices[2], vertices[0], triangle->edges[1]);
+	cross(triangle->edges[0], triangle->edges[1], triangle->normal);
+	multiply3(triangle->normal, -1., triangle->normal);//TODO: remove
 }
 
 void init_sphere(Sphere *sphere, OBJECT_INIT_PARAMS, Vec3 position, double radius)
@@ -156,6 +233,12 @@ void init_plane(Plane *plane, OBJECT_INIT_PARAMS, Vec3 normal, Vec3 point)
 	OBJECT_INIT(plane);
 	memcpy(plane->normal, normal, sizeof(Vec3));
 	plane->d = dot3(normal, point);
+}
+
+void init_light(Light *light, Vec3 position, Vec3 intensity)
+{
+	memcpy(light->position, position, sizeof(Vec3));
+	memcpy(light->intensity, intensity, sizeof(Vec3));
 }
 
 void save_image(char *filename, Image *image)
@@ -185,35 +268,56 @@ int main(int argc, char *argv[])
 	Object objects[num_objects];
 	Sphere *sphere1 = malloc(sizeof(Sphere));
 	init_sphere(sphere1,
-		(Color) {0, 255, 0},
-		(Vec3) {0., 0., 8.},
+		(Vec3) {0., 0., 0.},
+		(Vec3) {0., 1., 0.},
+		(Vec3) {0., .5, 0.},
+		0.,
+		(Vec3) {-3., 0., 8.},
 		1.);
 	objects[0].sphere = sphere1;
 
 	Sphere *sphere2 = malloc(sizeof(Sphere));
 	init_sphere(sphere2,
-		(Color) {255, 0, 0},
+		(Vec3) {.9, .9, .9},
+		(Vec3) {1., 0., 0.},
+		(Vec3) {.5, 0., 0.},
+		5.,
 		(Vec3) {0., 1., 7.},
 		1.5);
 	objects[1].sphere = sphere2;
 
 	Triangle *triangle1 = malloc(sizeof(Triangle));
 	init_triangle(triangle1,
-		(Color) {0, 0, 255},
+		(Vec3) {0., 0., 0.},
+		(Vec3) {0., 0., 1.},
+		(Vec3) {0., 0., .5},
+		0.,
 		(Vec3[3]) {
-			{1., -1., 7.3},
-			{0., 1., 7.3},
-			{-1., -1., 7.3}});
+			{3., -1., 7.3},
+			{2., 1., 7.3},
+			{1., -1., 7.3}});
 	objects[2].triangle = triangle1;
 
 	Plane *plane1 = malloc(sizeof(Plane));
 	init_plane(plane1,
-		(Color) {50, 50, 50},
+		(Vec3) {0., 0., 0.},
+		(Vec3) {.5, .5, .5},
+		(Vec3) {.5, .5, .5},
+		0.,
 		(Vec3) {0., 0., 1.},
 		(Vec3) {0., 0., 10.});
 	objects[3].plane = plane1;
 
-	create_image(&camera, num_objects, objects);
+	const int num_lights = 1;
+
+	Light *lights[num_lights];
+
+	lights[0] = malloc(sizeof(Light));
+	init_light(lights[0],
+		(Vec3) {5., -5., 5.},
+		(Vec3) {1., 1., 1.});
+
+	create_image(&camera, num_objects, objects, num_lights, lights);
 
 	save_image("test.ppm", &camera.image);
 

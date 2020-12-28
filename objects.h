@@ -42,6 +42,13 @@
 	memcpy(name->ka, ka, sizeof(Vec3));\
 	name->alpha = alpha;
 
+#define BOUNDING_SHAPE_PARAMS\
+	bool (*intersects)(BoundingShape, Line*);
+
+#define BOUNDING_SHAPE_INIT(type, name)\
+	type *name = malloc(sizeof(type));\
+	name->intersects = &intersects_##name;
+
 typedef struct Plane Plane;
 typedef struct Sphere Sphere;
 typedef struct Triangle Triangle;
@@ -49,6 +56,10 @@ typedef struct PolyTriangle PolyTriangle;
 typedef struct Mesh Mesh;
 typedef struct CommonObject CommonObject;
 typedef union Object Object;
+
+typedef struct CommonBoundingShape CommonBoundingShape;
+typedef struct BoundingSphere BoundingSphere;
+typedef union BoundingShape BoundingShape;
 
 typedef struct CommonObject {
 	OBJECT_PARAMS
@@ -62,8 +73,18 @@ typedef union Object {
 	Mesh *mesh;
 } Object;
 
+typedef struct CommonBoundingShape {
+	BOUNDING_SHAPE_PARAMS
+} CommonBoundingShape;
+
+typedef union BoundingShape {
+	CommonBoundingShape *common;
+	BoundingSphere *sphere;
+} BoundingShape;
+
 Mesh *init_mesh(OBJECT_INIT_PARAMS, uint32_t num_triangles);
 void mesh_set_triangle(Mesh *mesh, uint32_t index, Vec3 vertices[3]);
+void mesh_generate_bounding_sphere(Mesh *mesh);
 
 Triangle *init_triangle(OBJECT_INIT_PARAMS, Vec3 vertices[3]);
 

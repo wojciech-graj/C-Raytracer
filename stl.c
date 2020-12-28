@@ -44,16 +44,16 @@ Mesh *stl_load(OBJECT_INIT_PARAMS, FILE *file, Vec3 position, Vec3 rot, float sc
 		int j;
 		for(j = 0; j < 3; j++)
 		{
-			Vec3 temp;
 			Vec3 rotated_vertex = {
 				dot3(rotation_matrix[X], stl_triangle.vertices[j]),
 				dot3(rotation_matrix[Y], stl_triangle.vertices[j]),
 				dot3(rotation_matrix[Z], stl_triangle.vertices[j])};
-			multiply3(rotated_vertex, scale, temp);
-			add3(temp, position, stl_triangle.vertices[j]);
+			multiply3(rotated_vertex, scale, stl_triangle.vertices[j]);
+			add3(stl_triangle.vertices[j], position, stl_triangle.vertices[j]);
 		}
 
 		mesh_set_triangle(mesh, i, stl_triangle.vertices);
 	}
+	mesh_generate_bounding_sphere(mesh);
 	return mesh;
 }

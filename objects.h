@@ -18,18 +18,22 @@
 	Vec3 ks;  /*specular reflection constant*/\
 	Vec3 kd; /*diffuse reflection constant*/\
 	Vec3 ka; /*ambient reflection constant*/\
-	float alpha; /*shininess constant*/
+	Vec3 kr; /*specular interreflection constant*/\
+	float alpha; /*shininess constant*/\
+	float beta; /*specular interreflection magnitude*/
 
 #define OBJECT_INIT_PARAMS\
 	Vec3 ks,\
 	Vec3 kd,\
 	Vec3 ka,\
+	Vec3 kr,\
 	float alpha
 
 #define OBJECT_INIT_VARS\
 	ks,\
 	kd,\
 	ka,\
+	kr,\
 	alpha
 
 #define OBJECT_INIT(type, name)\
@@ -40,7 +44,9 @@
 	memcpy(name->ks, ks, sizeof(Vec3));\
 	memcpy(name->kd, kd, sizeof(Vec3));\
 	memcpy(name->ka, ka, sizeof(Vec3));\
-	name->alpha = alpha;
+	memcpy(name->kr, kr, sizeof(Vec3));\
+	name->alpha = alpha;\
+	name->beta = magnitude3(kr);
 
 #define BOUNDING_SHAPE_PARAMS\
 	bool (*intersects)(BoundingShape, Line*);

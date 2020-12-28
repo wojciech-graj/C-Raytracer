@@ -51,7 +51,6 @@ Mesh *stl_load(OBJECT_INIT_PARAMS, FILE *file, Vec3 position, Vec3 rot, float sc
 			multiply3(rotated_vertex, scale, stl_triangle.vertices[j]);
 			add3(stl_triangle.vertices[j], position, stl_triangle.vertices[j]);
 		}
-
 		mesh_set_triangle(mesh, i, stl_triangle.vertices);
 	}
 	mesh_generate_bounding_sphere(mesh);

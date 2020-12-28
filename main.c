@@ -65,82 +65,83 @@ bool is_intersection_in_distance(int num_objects, Object objects[num_objects], L
 	return false;
 }
 
-void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int num_lights, Light *lights[num_lights], Vec3 pixel_position, Color pixel)
+void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int num_lights, Light *lights[num_lights], Line *ray, Vec3 kr, Vec3 color)
 {
-	Line ray;
-	memcpy(ray.position, camera->position, sizeof(Vec3));
-	subtract3(pixel_position, camera->position, ray.vector);
-	normalize3(ray.vector);
-
 	Object closest_object;
 	closest_object.common = NULL;
-	Vec3 closest_normal;
-	float min_distance = get_closest_intersection(num_objects, objects, &ray, &closest_object, closest_normal);
+	Vec3 closest_normal;//TODO: Rename
+	float min_distance = get_closest_intersection(num_objects, objects, ray, &closest_object, closest_normal);
 	if(closest_object.common) {
 		CommonObject *object = closest_object.common;
 
 		normalize3(closest_normal);
-		if(dot3(closest_normal, ray.vector) > 0.f)
+		if(dot3(closest_normal, ray->vector) > 0.f)
 			multiply3(closest_normal, -1.f, closest_normal);
 
 		//TODO: move to algorithm.c
 		//Phong reflection model
-		Vec3 color;
+		Vec3 obj_color;
 
 		Vec3 point;
-		multiply3(ray.vector, min_distance, point);
-		add3(point, ray.position, point);
+		multiply3(ray->vector, min_distance, point);
+		add3(point, ray->position, point);
 
 		//ambient
-		multiply3v(object->ka, ambient_light_intensity, color);
+		Vec3 ambient;
+		multiply3v(object->ka, ambient_light_intensity, obj_color);
+
+		//Line from point to light
+		Line light_ray;
+		memcpy(light_ray.position, point, sizeof(Vec3));
 
 		int i;
 		for(i = 0; i < num_lights; i++)
 		{
 			Light *light = lights[i];
 
-			//direction from point to light
-			Vec3 inv_incedent;
-			subtract3(light->position, point, inv_incedent);
-			float light_distance = magnitude3(inv_incedent);
-			normalize3(inv_incedent);
+			//Line from point to light
+			subtract3(light->position, point, light_ray.vector);
+			float light_distance = magnitude3(light_ray.vector);
+			normalize3(light_ray.vector);
 
-			Line light_ray;
-			memcpy(light_ray.position, point, sizeof(Vec3));
-			memcpy(light_ray.vector, inv_incedent, sizeof(Vec3));
+			float a = dot3(light_ray.vector, closest_normal);
+
+			//direction of a reflected ray of light from point
+			Vec3 reflected;
+			multiply3(closest_normal, 2 * a, reflected);
+			subtract3(reflected, light_ray.vector, reflected);
 
 			if(! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance)) {
-				float a = dot3(inv_incedent, closest_normal);
-
-				//direction of a reflected ray of light from point
-				Vec3 reflected;
-				multiply3(closest_normal, 2 * a, reflected);
-				subtract3(reflected, inv_incedent, reflected);
-
 				Vec3 diffuse;
 				multiply3v(object->kd, light->intensity, diffuse);
 				multiply3(diffuse, fmaxf(0., a), diffuse);
 
 				Vec3 specular;
 				multiply3v(object->ks, light->intensity, specular);
-				multiply3(specular, fmaxf(0., pow(- dot3(reflected, ray.vector), object->alpha)), specular);
+				multiply3(specular, fmaxf(0., pow(- dot3(reflected, ray->vector), object->alpha)), specular);
 
-				add3_3(color, diffuse, specular, color);
+				add3_3(obj_color, diffuse, specular, obj_color);
 			}
 		}
+		multiply3v(obj_color, kr, obj_color);
+		add3(color, obj_color, color);
+		//END OF PHONG REFLECTION MODEL
 
-		multiply3(color, 255., color);
-		pixel[0] = fmaxf(fminf(color[0], 255.), 0.);
-		pixel[1] = fmaxf(fminf(color[1], 255.), 0.);
-		pixel[2] = fmaxf(fminf(color[2], 255.), 0.);
-	} else
-		memcpy(pixel, background_color, sizeof(Color));
+		//reflection
+		if(object->beta > EPSILON) {
+			Line reflection_ray;
+			memcpy(reflection_ray.position, point, sizeof(Vec3));
+			multiply3(closest_normal, 2 * dot3(ray->vector, closest_normal), reflection_ray.vector);
+			subtract3(ray->vector, reflection_ray.vector, reflection_ray.vector);
+			cast_ray(camera, num_objects, objects, num_lights, lights, &reflection_ray, object->kr, color);
+		}
+	}
 }
 
 void create_image(Camera *camera, int num_objects, Object objects[num_objects], int num_lights, Light *lights[num_lights])
 {
+	Vec3 kr = {1.f, 1.f, 1.f};
 	#ifdef MULTITHREADING
-	omp_set_num_threads(NUM_THREADS);
 	#pragma omp parallel for
 	#endif
 	for(int row = 0; row < camera->image.resolution[Y]; row++)
@@ -148,12 +149,22 @@ void create_image(Camera *camera, int num_objects, Object objects[num_objects], 
 		Vec3 pixel_position;
 		multiply3(camera->image.vectors[Y], row, pixel_position);
 		add3(pixel_position, camera->image.corner, pixel_position);
+		Line ray;
+		memcpy(ray.position, camera->position, sizeof(Vec3));
 		int pixel_index = camera->image.resolution[X] * row;
 		int col;
 		for(col = 0; col < camera->image.resolution[X]; col++)
 		{
 			add3(pixel_position, camera->image.vectors[X], pixel_position);
-			cast_ray(camera, num_objects, objects, num_lights, lights, pixel_position, camera->image.pixels[pixel_index]);
+			Vec3 color = {0., 0., 0.};
+			subtract3(pixel_position, camera->position, ray.vector);
+			normalize3(ray.vector);
+			cast_ray(camera, num_objects, objects, num_lights, lights, &ray, kr, color);
+			multiply3(color, 255., color);
+			uint8_t *pixel = camera->image.pixels[pixel_index];
+			pixel[0] = fmaxf(fminf(color[0], 255.), 0.);
+			pixel[1] = fmaxf(fminf(color[1], 255.), 0.);
+			pixel[2] = fmaxf(fminf(color[2], 255.), 0.);
 			pixel_index++;
 		}
 	}
@@ -173,6 +184,18 @@ int main(int argc, char *argv[])
 {
 	(void)argc;
 	(void)argv;
+
+	#ifdef DISPLAY_TIME
+	struct timespec current_t;
+	clock_gettime(CLOCK_MONOTONIC, &current_t);
+	float init_time = current_t.tv_sec + current_t.tv_nsec * 1e-9f;
+	#endif
+
+	#ifdef MULTITHREADING
+	NUM_THREADS = omp_get_max_threads();
+	omp_set_num_threads(NUM_THREADS);
+	#endif
+
 	Camera camera;
 	init_camera(&camera,
 		(Vec3) {0.f, 0.f, 0.f},
@@ -191,15 +214,17 @@ int main(int argc, char *argv[])
 		(Vec3) {0.f, 0.f, 0.f},
 		(Vec3) {0.f, 1.f, 0.f},
 		(Vec3) {0.f, .5f, 0.f},
+		(Vec3) {0.f, 0.f, 0.f},
 		0.f,
-		(Vec3) {-3.f, 0.f, 8.f},
+		(Vec3) {-3.f, 0.f, 9.f},
 		1.f);
 
 	objects[1].sphere = init_sphere(
 		(Vec3) {.9f, .9f, .9f},
 		(Vec3) {1.f, 0.f, 0.f},
 		(Vec3) {.5f, 0.f, 0.f},
-		5.f,
+		(Vec3) {1.f, 1.f, 1.f},
+		15.f,
 		(Vec3) {-3.f, 1.f, 7.f},
 		1.5f);
 
@@ -207,21 +232,23 @@ int main(int argc, char *argv[])
 		(Vec3) {0.f, 0.f, 0.f},
 		(Vec3) {.5f, .5f, .5f},
 		(Vec3) {1.f, 1.f, 1.f},
+		(Vec3) {0.f, 0.f, 0.f},
 		0.f,
 		(Vec3) {0.f, -1.f, 0.f},
 		(Vec3) {0.f, 4.f, 0.f});
 
-	FILE *file = fopen("meshes/utah_teapot_lowpoly.stl", "rb");
+	FILE *file = fopen("meshes/utah_teapot.stl", "rb");
 	assert(file);
 	objects[3].mesh = stl_load(
-		(Vec3) {0.f, 0.f, 0.f},
-		(Vec3) {0.f, 0.f, .7f},
-		(Vec3) {0.f, 0.f, .7f},
-		0.f,
+		(Vec3) {.9f, .9f, .9f},
+		(Vec3) {0.f, 0.f, .5f},
+		(Vec3) {0.f, 0.f, .5f},
+		(Vec3) {1.f, 1.f, 1.f},
+		20.f,
 		file,
 		(Vec3) {2.f, 2.5f, 8.f},
 		(Vec3) {PI/2.f, 0.f, 0.f},
-		0.1f);
+		0.4f);
 	fclose(file);
 
 	const int num_lights = 1;
@@ -233,9 +260,15 @@ int main(int argc, char *argv[])
 		(Vec3) {5.f, -5.f, 5.f},
 		(Vec3) {1.f, 1.f, 1.f});
 
+	PRINT_TIME("[%07.3f] INITIALIZED SCENE. BEGAN RENDERING.\n");
+
 	create_image(&camera, num_objects, objects, num_lights, lights);
 
+	PRINT_TIME("[%07.3f] FINISHED RENDERING.\n");
+
 	save_image("test.ppm", &camera.image);
+
+	PRINT_TIME("[%07.3f] SAVED IMAGE.\n");
 
 	free(camera.image.pixels);
 	int i;
@@ -247,4 +280,6 @@ int main(int argc, char *argv[])
 	{
 		free(lights[i]);
 	}
+
+	PRINT_TIME("[%07.3f] TERMINATED PROGRAM.\n");
 }

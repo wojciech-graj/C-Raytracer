@@ -1,5 +1,5 @@
 SRC_FILES := main.c vector.c objects.c stl.c algorithm.c
-LINUX_CFLAGS := -lm -std=c11 -Wno-address-of-packed-member
+LINUX_CFLAGS := -lm -std=c11 -Wno-address-of-packed-member -DDISPLAY_TIME
 WINDOWS_CFLAGS := -LC:\MinGW\lib -IC:\MinGW\include -mwindows -lmingw32 -fopenmp
 RELEASE_CFLAGS := -Ofast -DMULTITHREADING -fopenmp
 DEBUG_CFLAGS := -Wall -Wextra -Wdouble-promotion -Wpedantic -Wstrict-prototypes -Wshadow -g -fsanitize=address -fsanitize=undefined -Og -DDEBUG

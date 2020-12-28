@@ -10,15 +10,25 @@
 #include <float.h>
 #include <assert.h>
 
-#include <omp.h>
-
 #include "global.h"
 #include "vector.h"
 #include "objects.h"
 #include "stl.h"
 #include "algorithm.h"
 
-#define NUM_THREADS 12
+#ifdef DISPLAY_TIME
+#include <time.h>
+#define PRINT_TIME(format)\
+	clock_gettime(CLOCK_MONOTONIC, &current_t);\
+	printf(format, current_t.tv_sec + current_t.tv_nsec * 1e-9f - init_time);
+#else
+#define PRINT_TIME(format)
+#endif
+
+#ifdef MULTITHREADING
+#include <omp.h>
+int NUM_THREADS;
+#endif
 
 typedef uint8_t Color[3];
 typedef struct Image Image;

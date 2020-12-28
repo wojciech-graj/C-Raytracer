@@ -12,7 +12,8 @@
 #include "algorithm.h"
 
 #define OBJECT_PARAMS\
-	bool (*intersects)(Object, Line*, float*, Vec3);\
+	bool (*get_intersection)(Object, Line*, float*, Vec3);\
+	bool (*intersects_in_range)(Object, Line*, float);\
 	void (*delete)(Object);\
 	Vec3 ks;  /*specular reflection constant*/\
 	Vec3 kd; /*diffuse reflection constant*/\
@@ -33,7 +34,8 @@
 
 #define OBJECT_INIT(type, name)\
 	type *name = malloc(sizeof(type));\
-	name->intersects = &intersects_##name;\
+	name->get_intersection = &get_intersection_##name;\
+	name->intersects_in_range = &intersects_in_range_##name;\
 	name->delete = &delete_##name;\
 	memcpy(name->ks, ks, sizeof(Vec3));\
 	memcpy(name->kd, kd, sizeof(Vec3));\

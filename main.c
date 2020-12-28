@@ -35,6 +35,36 @@ void init_light(Light *light, Vec3 position, Vec3 intensity)
 	memcpy(light->intensity, intensity, sizeof(Vec3));
 }
 
+float get_closest_intersection(int num_objects, Object objects[num_objects], Line *ray, Object *closest_object, Vec3 closest_normal)
+{
+	Vec3 normal;
+	float min_distance = FLT_MAX;
+	int i;
+	for(i = 0; i < num_objects; i++)
+	{
+		float distance;
+		if(objects[i].common->get_intersection(objects[i], ray, &distance, normal)) {
+			if(distance < min_distance) {
+				min_distance = distance;
+				*closest_object = objects[i];
+				memcpy(closest_normal, normal, sizeof(Vec3));
+			}
+		}
+	}
+	return min_distance;
+}
+
+bool is_intersection_in_distance(int num_objects, Object objects[num_objects], Line *ray, float min_distance)
+{
+	int i;
+	for(i = 0; i < num_objects; i++)
+	{
+		if(objects[i].common->intersects_in_range(objects[i], ray, min_distance))
+			return true;
+	}
+	return false;
+}
+
 void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int num_lights, Light *lights[num_lights], Vec3 pixel_position, Color pixel)
 {
 	Line ray;
@@ -43,22 +73,9 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int 
 	normalize3(ray.vector);
 
 	Object closest_object;
-	Vec3 closest_normal;
-	Vec3 normal;
 	closest_object.common = NULL;
-	float min_distance = FLT_MAX;
-	float distance;
-	int i;
-	for(i = 0; i < num_objects; i++)
-	{
-		if(objects[i].common->intersects(objects[i], &ray, &distance, normal)) {
-			if(distance < min_distance) {
-				min_distance = distance;
-				closest_object = objects[i];
-				memcpy(closest_normal, normal, sizeof(Vec3));
-			}
-		}
-	}
+	Vec3 closest_normal;
+	float min_distance = get_closest_intersection(num_objects, objects, &ray, &closest_object, closest_normal);
 	if(closest_object.common) {
 		CommonObject *object = closest_object.common;
 
@@ -77,6 +94,7 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int 
 		//ambient
 		multiply3v(object->ka, ambient_light_intensity, color);
 
+		int i;
 		for(i = 0; i < num_lights; i++)
 		{
 			Light *light = lights[i];
@@ -84,24 +102,31 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int 
 			//direction from point to light
 			Vec3 inv_incedent;
 			subtract3(light->position, point, inv_incedent);
+			float light_distance = magnitude3(inv_incedent);
 			normalize3(inv_incedent);
 
-			float a = dot3(inv_incedent, closest_normal);
+			Line light_ray;
+			memcpy(light_ray.position, point, sizeof(Vec3));
+			memcpy(light_ray.vector, inv_incedent, sizeof(Vec3));
 
-			//direction of a reflected ray of light from point
-			Vec3 reflected;
-			multiply3(closest_normal, 2 * a, reflected);
-			subtract3(reflected, inv_incedent, reflected);
+			if(! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance)) {
+				float a = dot3(inv_incedent, closest_normal);
 
-			Vec3 diffuse;
-			multiply3v(object->kd, light->intensity, diffuse);
-			multiply3(diffuse, fmaxf(0., a), diffuse);
+				//direction of a reflected ray of light from point
+				Vec3 reflected;
+				multiply3(closest_normal, 2 * a, reflected);
+				subtract3(reflected, inv_incedent, reflected);
 
-			Vec3 specular;
-			multiply3v(object->ks, light->intensity, specular);
-			multiply3(specular, fmaxf(0., pow(- dot3(reflected, ray.vector), object->alpha)), specular);
+				Vec3 diffuse;
+				multiply3v(object->kd, light->intensity, diffuse);
+				multiply3(diffuse, fmaxf(0., a), diffuse);
 
-			add3_3(color, diffuse, specular, color);
+				Vec3 specular;
+				multiply3v(object->ks, light->intensity, specular);
+				multiply3(specular, fmaxf(0., pow(- dot3(reflected, ray.vector), object->alpha)), specular);
+
+				add3_3(color, diffuse, specular, color);
+			}
 		}
 
 		multiply3(color, 255., color);
@@ -183,8 +208,8 @@ int main(int argc, char *argv[])
 		(Vec3) {.5f, .5f, .5f},
 		(Vec3) {1.f, 1.f, 1.f},
 		0.f,
-		(Vec3) {0.f, 0.f, 1.f},
-		(Vec3) {0.f, 0.f, 100.f});
+		(Vec3) {0.f, -1.f, 0.f},
+		(Vec3) {0.f, 4.f, 0.f});
 
 	FILE *file = fopen("meshes/utah_teapot_lowpoly.stl", "rb");
 	assert(file);

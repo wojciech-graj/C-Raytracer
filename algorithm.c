@@ -24,7 +24,7 @@ bool moller_trumbore(Vec3 vertex, Vec3 edges[2], Vec3 line_position, Vec3 line_v
 		return false;
 }
 
-bool line_intersects_sphere(Vec3 sphere_position, double sphere_radius, Vec3 line_position, Vec3 line_vector, float *distance)
+bool line_intersects_sphere(Vec3 sphere_position, float sphere_radius, Vec3 line_position, Vec3 line_vector, float *distance)
 {
 	Vec3 relative_position;
 	subtract3(line_position, sphere_position, relative_position);
@@ -36,7 +36,7 @@ bool line_intersects_sphere(Vec3 sphere_position, double sphere_radius, Vec3 lin
 		return false;
 	else {
 		*distance = (sqrtf(determinant) + b) / (-2 * a);
-		if(*distance > 0)//if in front of origin of ray
+		if(*distance > EPSILON)//if in front of origin of ray
 			return true;
 		else
 			return false;

@@ -1,26 +1,26 @@
 #include "vector.h"
 
-double sqr(double val)
+float sqr(float val)
 {
     return val * val;
 }
 
-double magnitude2(Vec2 vec)
+float magnitude2(Vec2 vec)
 {
-	return sqrt(sqr(vec[X]) + sqr(vec[Y]));
+	return sqrtf(sqr(vec[X]) + sqr(vec[Y]));
 }
 
-double magnitude3(Vec3 vec)
+float magnitude3(Vec3 vec)
 {
-	return sqrt(sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]));
+	return sqrtf(sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]));
 }
 
-double dot2(Vec2 vec1, Vec2 vec2)
+float dot2(Vec2 vec1, Vec2 vec2)
 {
 	return vec1[X] * vec2[X] + vec1[Y] * vec2[Y];
 }
 
-double dot3(Vec3 vec1, Vec3 vec2)
+float dot3(Vec3 vec1, Vec3 vec2)
 {
 	return vec1[X] * vec2[X] + vec1[Y] * vec2[Y] + vec1[Z] * vec2[Z];
 }
@@ -32,13 +32,13 @@ void cross(Vec3 vec1, Vec3 vec2, Vec3 result)
     result[Z] = vec1[X] * vec2[Y] - vec1[Y] * vec2[X];
 }
 
-void multiply2(Vec2 vec, double mul, Vec2 result)
+void multiply2(Vec2 vec, float mul, Vec2 result)
 {
 	result[X] = vec[X] * mul;
 	result[Y] = vec[Y] * mul;
 }
 
-void multiply3(Vec3 vec, double mul, Vec3 result)
+void multiply3(Vec3 vec, float mul, Vec3 result)
 {
 	result[X] = vec[X] * mul;
 	result[Y] = vec[Y] * mul;
@@ -52,13 +52,13 @@ void multiply3v(Vec3 vec1, Vec3 vec2, Vec3 result)
 	result[Z] = vec1[Z] * vec2[Z];
 }
 
-void divide2(Vec2 vec, double div, Vec2 result)
+void divide2(Vec2 vec, float div, Vec2 result)
 {
 	result[X] = vec[X] / div;
 	result[Y] = vec[Y] / div;
 }
 
-void divide3(Vec3 vec, double div, Vec3 result)
+void divide3(Vec3 vec, float div, Vec3 result)
 {
 	result[X] = vec[X] / div;
 	result[Y] = vec[Y] / div;
@@ -76,6 +76,13 @@ void add3(Vec3 vec1, Vec3 vec2, Vec3 result)
 	result[X] = vec1[X] + vec2[X];
 	result[Y] = vec1[Y] + vec2[Y];
 	result[Z] = vec1[Z] + vec2[Z];
+}
+
+void add3_3(Vec3 vec1, Vec3 vec2, Vec3 vec3, Vec3 result)
+{
+	result[X] = vec1[X] + vec2[X] + vec3[X];
+	result[Y] = vec1[Y] + vec2[Y] + vec3[Y];
+	result[Z] = vec1[Z] + vec2[Z] + vec3[Z];
 }
 
 void subtract2(Vec2 vec1, Vec2 vec2, Vec2 result)

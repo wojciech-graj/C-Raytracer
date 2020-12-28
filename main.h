@@ -10,11 +10,15 @@
 #include <float.h>
 #include <assert.h>
 
+#include <omp.h>
+
 #include "global.h"
 #include "vector.h"
 #include "objects.h"
 #include "stl.h"
 #include "algorithm.h"
+
+#define NUM_THREADS 12
 
 typedef uint8_t Color[3];
 typedef struct Image Image;

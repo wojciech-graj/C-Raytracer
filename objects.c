@@ -40,11 +40,10 @@ typedef struct Mesh {
 	Vec3 position;
 	uint32_t num_triangles;
 	PolyTriangle *triangles;
-	PolyTriangle *closest_triangle;
 	BoundingShape bounding_shape;
 } Mesh;
 
-bool intersects_mesh(Object object, Line *ray, float *distance)
+bool intersects_mesh(Object object, Line *ray, float *distance, Vec3 normal)
 {
 	Mesh *mesh = object.mesh;
 	if(! mesh->bounding_shape.common->intersects(mesh->bounding_shape, ray))
@@ -52,6 +51,7 @@ bool intersects_mesh(Object object, Line *ray, float *distance)
 	else {
 		#ifndef SHOW_BOUNDING_SHAPES
 		*distance = FLT_MAX;
+		PolyTriangle *closest_triangle = NULL;
 		float cur_distance;
 		uint32_t i;
 		for(i = 0; i < mesh->num_triangles; i++)
@@ -60,30 +60,21 @@ bool intersects_mesh(Object object, Line *ray, float *distance)
 			if(moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, &cur_distance)) {
 				if(cur_distance < *distance) {
 					*distance = cur_distance;
-					mesh->closest_triangle = triangle;
+					closest_triangle = triangle;
 				}
 			}
 		}
 		if(*distance == FLT_MAX)
 			return false;
-		else
+		else {
+			memcpy(normal, closest_triangle->normal, sizeof(Vec3));
 			return true;
+		}
 		#else
-			mesh->closest_triangle = &mesh->triangles[0];
+			memcpy(normal, mesh->triangles[0].normal, sizeof(Vec3));
 			*distance = 1.f;
 			return true;
 		#endif
-	}
-}
-
-void get_normal_mesh(Object object, Line *ray, Vec3 position, Vec3 normal)
-{
-	(void)position;
-	Mesh *mesh = object.mesh;
-	if(dot3(mesh->closest_triangle->normal, ray->vector) < 0.f) {
-		memcpy(normal, mesh->closest_triangle->normal, sizeof(Vec3));
-	} else {
-		multiply3(mesh->closest_triangle->normal, -1.f, normal);
 	}
 }
 
@@ -100,7 +91,6 @@ Mesh *init_mesh(OBJECT_INIT_PARAMS, uint32_t num_triangles)
 	OBJECT_INIT(Mesh, mesh);
 	mesh->num_triangles = num_triangles;
 	mesh->triangles = malloc(sizeof(PolyTriangle) * num_triangles);
-	mesh->closest_triangle = NULL;
 	return mesh;
 }
 
@@ -192,19 +182,18 @@ typedef struct Sphere {
 	float radius;
 } Sphere;
 
-bool intersects_sphere(Object object, Line *ray, float *distance)
+bool intersects_sphere(Object object, Line *ray, float *distance, Vec3 normal)
 {
 	Sphere *sphere = object.sphere;
-	return line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, distance);
-}
-
-void get_normal_sphere(Object object, Line *ray, Vec3 position, Vec3 normal)
-{
-	(void)ray;
-	Sphere *sphere = object.sphere;
-	subtract3(position, sphere->position, normal);
-	if(dot3(normal, ray->vector) > 0) //if collision from within sphere
-		multiply3(normal, -1, normal);
+	bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, distance);
+	if(intersects) {//TODO: optimize?
+		Vec3 position;
+		multiply3(ray->vector, *distance, position);
+		add3(position, ray->position, position);
+		subtract3(position, sphere->position, normal);
+		return true;
+	} else
+		return false;
 }
 
 void delete_sphere(Object object)
@@ -231,20 +220,15 @@ typedef struct Triangle {//triangle ABC
 	Vec3 normal;
 } Triangle;
 
-bool intersects_triangle(Object object, Line *ray, float *distance)
+bool intersects_triangle(Object object, Line *ray, float *distance, Vec3 normal)
 {
 	Triangle *triangle = object.triangle;
-	return moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, distance);
-}
-
-void get_normal_triangle(Object object, Line *ray, Vec3 position, Vec3 normal)
-{
-	(void)position;
-	Triangle *triangle = object.triangle;
-	if(dot3(triangle->normal, ray->vector) < 0.f)
+	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, distance);
+	if(intersects) {
 		memcpy(normal, triangle->normal, sizeof(Vec3));
-	else
-		multiply3(triangle->normal, -1.f, normal);
+		return true;
+	} else
+		return false;
 }
 
 void delete_triangle(Object object)
@@ -272,27 +256,18 @@ typedef struct Plane {//normal = {a,b,c}, ax + by + cz = d
 	float d;
 } Plane;
 
-bool intersects_plane(Object object, Line *ray, float *distance)
+bool intersects_plane(Object object, Line *ray, float *distance, Vec3 normal)
 {
 	Plane *plane = object.plane;
 	float a = dot3(plane->normal, ray->vector);
 	if(a < EPSILON && a > -EPSILON) //ray is parallel to line
 		return false;
 	*distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
-	if(*distance > EPSILON)
-		return true;
-	else
-		return false;
-}
-
-void get_normal_plane(Object object, Line *ray, Vec3 position, Vec3 normal)
-{
-	(void)position;
-	Plane *plane = object.plane;
-	if(dot3(plane->normal, ray->vector) < 0.f)
+	if(*distance > EPSILON) {
 		memcpy(normal, plane->normal, sizeof(Vec3));
-	else
-		multiply3(plane->normal, -1.f, normal);
+		return true;
+	} else
+		return false;
 }
 
 void delete_plane(Object object)

@@ -43,21 +43,29 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int 
 	normalize3(ray.vector);
 
 	Object closest_object;
+	Vec3 closest_normal;
+	Vec3 normal;
 	closest_object.common = NULL;
 	float min_distance = FLT_MAX;
 	float distance;
 	int i;
 	for(i = 0; i < num_objects; i++)
 	{
-		if(objects[i].common->intersects(objects[i], &ray, &distance)) {
+		if(objects[i].common->intersects(objects[i], &ray, &distance, normal)) {
 			if(distance < min_distance) {
 				min_distance = distance;
 				closest_object = objects[i];
+				memcpy(closest_normal, normal, sizeof(Vec3));
 			}
 		}
 	}
 	if(closest_object.common) {
 		CommonObject *object = closest_object.common;
+
+		normalize3(closest_normal);
+		if(dot3(closest_normal, ray.vector) > 0.f)
+			multiply3(closest_normal, -1.f, closest_normal);
+
 		//TODO: move to algorithm.c
 		//Phong reflection model
 		Vec3 color;
@@ -65,10 +73,6 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int 
 		Vec3 point;
 		multiply3(ray.vector, min_distance, point);
 		add3(point, ray.position, point);
-
-		Vec3 normal;
-		object->get_normal(closest_object, &ray, point, normal);
-		normalize3(normal);
 
 		//ambient
 		multiply3v(object->ka, ambient_light_intensity, color);
@@ -82,11 +86,11 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int 
 			subtract3(light->position, point, inv_incedent);
 			normalize3(inv_incedent);
 
-			float a = dot3(inv_incedent, normal);
+			float a = dot3(inv_incedent, closest_normal);
 
 			//direction of a reflected ray of light from point
 			Vec3 reflected;
-			multiply3(normal, 2 * a, reflected);
+			multiply3(closest_normal, 2 * a, reflected);
 			subtract3(reflected, inv_incedent, reflected);
 
 			Vec3 diffuse;
@@ -110,14 +114,18 @@ void cast_ray(Camera *camera, int num_objects, Object objects[num_objects], int 
 
 void create_image(Camera *camera, int num_objects, Object objects[num_objects], int num_lights, Light *lights[num_lights])
 {
-	int pixel_index = 0;
-	int pixel[2];
-	Vec3 pixel_position;
-	for(pixel[Y] = 0; pixel[Y] < camera->image.resolution[Y]; pixel[Y]++)
+	#ifdef MULTITHREADING
+	omp_set_num_threads(NUM_THREADS);
+	#pragma omp parallel for
+	#endif
+	for(int row = 0; row < camera->image.resolution[Y]; row++)
 	{
-		multiply3(camera->image.vectors[Y], pixel[Y], pixel_position);
+		Vec3 pixel_position;
+		multiply3(camera->image.vectors[Y], row, pixel_position);
 		add3(pixel_position, camera->image.corner, pixel_position);
-		for(pixel[X] = 0; pixel[X] < camera->image.resolution[X]; pixel[X]++)
+		int pixel_index = camera->image.resolution[X] * row;
+		int col;
+		for(col = 0; col < camera->image.resolution[X]; col++)
 		{
 			add3(pixel_position, camera->image.vectors[X], pixel_position);
 			cast_ray(camera, num_objects, objects, num_lights, lights, pixel_position, camera->image.pixels[pixel_index]);

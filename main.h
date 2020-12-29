@@ -15,47 +15,38 @@
 #include "objects.h"
 #include "stl.h"
 #include "algorithm.h"
+#include "scene.h"
 
 #ifdef DISPLAY_TIME
 #include <time.h>
 #define PRINT_TIME(format)\
-	clock_gettime(CLOCK_MONOTONIC, &current_t);\
-	printf(format, current_t.tv_sec + current_t.tv_nsec * 1e-9f - init_time);
+	timespec_get(&current_t, TIME_UTC);\
+	printf(format, (current_t.tv_sec - start_t.tv_sec) + (current_t.tv_nsec - start_t.tv_nsec) * 1e-9f);
 #else
 #define PRINT_TIME(format)
 #endif
 
 #ifdef MULTITHREADING
 #include <omp.h>
-int NUM_THREADS;
+int NUM_THREADS = 1;
 #endif
 
-typedef uint8_t Color[3];
-typedef struct Image Image;
-typedef struct Camera Camera;
-typedef struct Light Light;
+Vec3 ambient_light_intensity = {0.f, 0.f, 0.f};
+int max_bounces = 10;
 
-Color background_color = {0, 0, 0};
-Vec3 ambient_light_intensity = {.1, .1, .1};
-
-typedef struct Image {
-	int resolution[2];
-	Vec2 size;
-	Vec3 corner; //Top left corner of image
-	Vec3 vectors[2]; //Vectors for image plane traversal by 1 pixel in X and Y directions
-	Color *pixels;
-} Image;
-
-typedef struct Camera {
-	Vec3 position;
-	Vec3 vectors[3]; //vectors are perpendicular to eachother and normalized. vectors[3] is normal to projection_plane.
-	float focal_length;
-	Image image;
-} Camera;
-
-typedef struct Light {
-	Vec3 position;
-	Vec3 intensity;
-} Light;
+const char *HELPTEXT = \
+"Renders a scene using raytracing.\n\
+\n\
+REQUIRED PARAMS:\n\
+--file       [-f] (string)            : specifies the scene file which will be used to generate the image. Example files can be found in scenes/\n\
+--output     [-o] (string)            : specifies the file to which the image will be saved. Must end in .ppm\n\
+--resolution [-r] (integer) (integer) : specifies the resolution of the output image\n\
+OPTIONAL PARAMS:\n\
+-m (integer)   : DEFAULT = 1    : specifies the number of CPU cores\n\
+    Accepted values:\n\
+    (integer)  : allocates (integer) amount of CPU cores\n\
+    max        : allocates the maximum number of cores\n\
+-b (integer)   : DEFAULT = 10 : specifies the maximum number of times that a light ray can bounce. Large values: (integer) > 100 may cause stack overflows.\n\
+-fov (integer) : DEFAULT = 90   : specifies the angle of the horizontal field of view in degress. Must be in range: 0 < (integer) < 180\n";
 
 #endif

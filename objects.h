@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <float.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <assert.h>
 
 #include "global.h"
 #include "vector.h"
@@ -19,22 +21,26 @@
 	Vec3 kd; /*diffuse reflection constant*/\
 	Vec3 ka; /*ambient reflection constant*/\
 	Vec3 kr; /*specular interreflection constant*/\
-	float alpha; /*shininess constant*/\
-	float beta; /*specular interreflection magnitude*/
+	float shininess; /*shininess constant*/\
+	bool reflective; /*specular interreflection magnitude*/
 
 #define OBJECT_INIT_PARAMS\
 	Vec3 ks,\
 	Vec3 kd,\
 	Vec3 ka,\
 	Vec3 kr,\
-	float alpha
+	float shininess
 
 #define OBJECT_INIT_VARS\
 	ks,\
 	kd,\
 	ka,\
 	kr,\
-	alpha
+	shininess
+
+#define OBJECT_INIT_VARS_DECL\
+	Vec3 ks, kd, ka, kr;\
+	float shininess;
 
 #define OBJECT_INIT(type, name)\
 	type *name = malloc(sizeof(type));\
@@ -45,8 +51,8 @@
 	memcpy(name->kd, kd, sizeof(Vec3));\
 	memcpy(name->ka, ka, sizeof(Vec3));\
 	memcpy(name->kr, kr, sizeof(Vec3));\
-	name->alpha = alpha;\
-	name->beta = magnitude3(kr);
+	name->shininess = shininess;\
+	name->reflective = magnitude3(kr) > epsilon;
 
 #define BOUNDING_SHAPE_PARAMS\
 	bool (*intersects)(BoundingShape, Line*);
@@ -55,10 +61,34 @@
 	type *name = malloc(sizeof(type));\
 	name->intersects = &intersects_##name;
 
+typedef struct Image Image;
+typedef struct Camera Camera;
+typedef struct Light Light;
+
+typedef struct Image {
+	int resolution[2];
+	Vec2 size;
+	Vec3 corner; //Top left corner of image
+	Vec3 vectors[2]; //Vectors for image plane traversal by 1 pixel in X and Y directions
+	Color *pixels;
+} Image;
+
+typedef struct Camera {
+	Vec3 position;
+	Vec3 vectors[3]; //vectors are perpendicular to eachother and normalized. vectors[3] is normal to projection_plane.
+	float focal_length;
+	Image image;
+} Camera;
+
+typedef struct Light {
+	Vec3 position;
+	Vec3 intensity;
+} Light;
+
 typedef struct Plane Plane;
 typedef struct Sphere Sphere;
 typedef struct Triangle Triangle;
-typedef struct PolyTriangle PolyTriangle;
+typedef struct MeshTriangle MeshTriangle;
 typedef struct Mesh Mesh;
 typedef struct CommonObject CommonObject;
 typedef union Object Object;
@@ -87,6 +117,11 @@ typedef union BoundingShape {
 	CommonBoundingShape *common;
 	BoundingSphere *sphere;
 } BoundingShape;
+
+void init_camera(Camera *camera, Vec3 position, Vec3 vectors[2], float focal_length, int image_resolution[2], Vec2 image_size);
+void save_image(FILE *file, Image *image);
+
+void init_light(Light *light, Vec3 position, Vec3 intensity);
 
 Mesh *init_mesh(OBJECT_INIT_PARAMS, uint32_t num_triangles);
 void mesh_set_triangle(Mesh *mesh, uint32_t index, Vec3 vertices[3]);

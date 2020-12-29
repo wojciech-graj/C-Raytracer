@@ -1,6 +1,54 @@
 #include "objects.h"
 
 /*************************************************************
+*	CAMERA
+*/
+
+void init_camera(Camera *camera,
+	Vec3 position,
+	Vec3 vectors[2],
+	float focal_length,
+	int image_resolution[2],
+	Vec2 image_size)
+{
+	memcpy(camera->position, position, sizeof(Vec3));
+	memcpy(camera->vectors, vectors, sizeof(Vec3[2]));
+	normalize3(camera->vectors[0]);
+	normalize3(camera->vectors[1]);
+	cross(camera->vectors[0], camera->vectors[1], camera->vectors[2]);
+	camera->focal_length = focal_length;
+	memcpy(camera->image.resolution, image_resolution, 2 * sizeof(int));
+	memcpy(camera->image.size, image_size, 2 * sizeof(float));
+	camera->image.pixels = malloc(image_resolution[X] * image_resolution[Y] * sizeof(Color));
+
+	Vec3 focal_vector, plane_center, corner_offset_vectors[2];
+	multiply3(camera->vectors[2], camera->focal_length, focal_vector);
+	add3(focal_vector, camera->position, plane_center);
+	multiply3(camera->vectors[0], camera->image.size[X] / camera->image.resolution[X], camera->image.vectors[0]);
+	multiply3(camera->vectors[1], camera->image.size[Y] / camera->image.resolution[Y], camera->image.vectors[1]);
+	multiply3(camera->image.vectors[X], .5 - camera->image.resolution[X] / 2., corner_offset_vectors[X]);
+	multiply3(camera->image.vectors[Y], .5 - camera->image.resolution[Y] / 2., corner_offset_vectors[Y]);
+	add3_3(plane_center, corner_offset_vectors[X], corner_offset_vectors[Y], camera->image.corner);
+}
+
+void save_image(FILE *file, Image *image)
+{
+	fprintf(file, "P6\n%d %d\n255\n", image->resolution[X], image->resolution[Y]);
+	size_t num_pixels = image->resolution[X] * image->resolution[Y];
+    assert(fwrite(image->pixels, sizeof(Color), num_pixels, file) == num_pixels);
+}
+
+/*************************************************************
+*	LIGHT
+*/
+
+void init_light(Light *light, Vec3 position, Vec3 intensity)
+{
+	memcpy(light->position, position, sizeof(Vec3));
+	memcpy(light->intensity, intensity, sizeof(Vec3));
+}
+
+/*************************************************************
 *	BOUNDING SPHERE
 */
 
@@ -29,17 +77,17 @@ BoundingSphere *init_bounding_sphere(Vec3 position, float radius)
 *	POLYGON
 */
 
-typedef struct PolyTriangle {//triangle ABC
+typedef struct MeshTriangle {//triangle ABC
 	Vec3 vertices[3];
 	Vec3 edges[2]; //Vectors BA and CA
 	Vec3 normal;
-} PolyTriangle;
+} MeshTriangle;
 
 typedef struct Mesh {
 	OBJECT_PARAMS
 	Vec3 position;
 	uint32_t num_triangles;
-	PolyTriangle *triangles;
+	MeshTriangle *triangles;
 	BoundingShape bounding_shape;
 } Mesh;
 
@@ -51,12 +99,12 @@ bool get_intersection_mesh(Object object, Line *ray, float *distance, Vec3 norma
 	else {
 		#ifndef SHOW_BOUNDING_SHAPES
 		*distance = FLT_MAX;
-		PolyTriangle *closest_triangle = NULL;
+		MeshTriangle *closest_triangle = NULL;
 		float cur_distance;
 		uint32_t i;
 		for(i = 0; i < mesh->num_triangles; i++)
 		{
-			PolyTriangle *triangle = &mesh->triangles[i];
+			MeshTriangle *triangle = &mesh->triangles[i];
 			if(moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, &cur_distance)) {
 				if(cur_distance < *distance) {
 					*distance = cur_distance;
@@ -86,7 +134,7 @@ bool intersects_in_range_mesh(Object object, Line *ray, float min_distance)
 		uint32_t i;
 		for(i = 0; i < mesh->num_triangles; i++)
 		{
-			PolyTriangle *triangle = &mesh->triangles[i];
+			MeshTriangle *triangle = &mesh->triangles[i];
 			if(moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, &distance)) {
 				if(distance < min_distance)
 					return true;
@@ -108,13 +156,13 @@ Mesh *init_mesh(OBJECT_INIT_PARAMS, uint32_t num_triangles)
 {
 	OBJECT_INIT(Mesh, mesh);
 	mesh->num_triangles = num_triangles;
-	mesh->triangles = malloc(sizeof(PolyTriangle) * num_triangles);
+	mesh->triangles = malloc(sizeof(MeshTriangle) * num_triangles);
 	return mesh;
 }
 
 void mesh_set_triangle(Mesh *mesh, uint32_t index, Vec3 vertices[3])
 {
-	PolyTriangle *triangle = &mesh->triangles[index];
+	MeshTriangle *triangle = &mesh->triangles[index];
 	memcpy(triangle->vertices, vertices, sizeof(Vec3[3]));
 	subtract3(vertices[1], vertices[0], triangle->edges[0]);
 	subtract3(vertices[2], vertices[0], triangle->edges[1]);
@@ -177,7 +225,7 @@ void mesh_generate_bounding_sphere(Mesh *mesh)
 			subtract3(vertex, sphere_position, sphere_to_point);
 			float distance_sqr = sqr(sphere_to_point[0]) + sqr(sphere_to_point[1]) + sqr(sphere_to_point[2]);
 			if(sphere_radius_sqr < distance_sqr) {
-				float half_distance = .5f * (sqrtf(distance_sqr) - sphere_radius) + EPSILON;
+				float half_distance = .5f * (sqrtf(distance_sqr) - sphere_radius) + epsilon;
 				sphere_radius += half_distance;
 				sphere_radius_sqr = sqr(sphere_radius);
 				normalize3(sphere_to_point);
@@ -204,7 +252,7 @@ bool get_intersection_sphere(Object object, Line *ray, float *distance, Vec3 nor
 {
 	Sphere *sphere = object.sphere;
 	bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, distance);
-	if(intersects) {//TODO: optimize?
+	if(intersects) {
 		Vec3 position;
 		multiply3(ray->vector, *distance, position);
 		add3(position, ray->position, position);
@@ -300,10 +348,10 @@ bool get_intersection_plane(Object object, Line *ray, float *distance, Vec3 norm
 {
 	Plane *plane = object.plane;
 	float a = dot3(plane->normal, ray->vector);
-	if(a < EPSILON && a > -EPSILON) //ray is parallel to line
+	if(a < epsilon && a > -epsilon) //ray is parallel to line
 		return false;
 	*distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
-	if(*distance > EPSILON) {
+	if(*distance > epsilon) {
 		memcpy(normal, plane->normal, sizeof(Vec3));
 		return true;
 	} else
@@ -314,10 +362,10 @@ bool intersects_in_range_plane(Object object, Line *ray, float min_distance)
 {
 	Plane *plane = object.plane;
 	float a = dot3(plane->normal, ray->vector);
-	if(a < EPSILON && a > -EPSILON) //ray is parallel to line
+	if(a < epsilon && a > -epsilon) //ray is parallel to line
 		return false;
 	float distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
-	if(distance > EPSILON && distance < min_distance)
+	if(distance > epsilon && distance < min_distance)
 		return true;
 	else
 		return false;

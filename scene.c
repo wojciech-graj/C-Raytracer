@@ -2,7 +2,7 @@
 
 #include "jsmn.h"
 
-const char *scene_elem_tags[] = {"Camera", "Sphere", "Triangle", "Plane", "Mesh", "Light", "AmbientLight", "Epsilon"};
+const char *scene_elem_tags[] = {"Camera", "Sphere", "Triangle", "Plane", "Mesh", "Light", "AmbientLight", "Epsilon", "LightArea"};
 const char *camera_elem_tags[] = {"position", "vector_x", "vector_y"};
 const char *object_elem_tags[] = {"ks", "kd", "ka", "kr", "kt", "shininess", "refractive_index"};
 const char *sphere_elem_tags[] = {"position", "radius"};
@@ -10,6 +10,7 @@ const char *triangle_elem_tags[] = {"vertex_1", "vertex_2", "vertex_3"};
 const char *plane_elem_tags[] = {"position", "normal"};
 const char *mesh_elem_tags[] = {"filename", "position", "rotation", "scale"};
 const char *light_elem_tags[] = {"position", "intensity"};
+const char *lightarea_elem_tags[] = {"position", "side_1", "side_2", "point_spacing", "intensity"};
 
 int get_string_index(int num_elems, const char **array, char *buffer, int string_start, int string_length)
 {
@@ -338,6 +339,69 @@ void scene_load_light(char *buffer, jsmntok_t *tokens, int *token_index, Light *
 	init_light(light, position, intensity);
 }
 
+void scene_load_lightarea(char *buffer, jsmntok_t *tokens, int *token_index, int *num_lights, int *light_array_size, Light **lights)
+{
+	assert(tokens[*token_index].size == NUM_LIGHTAREA_ELEMS);
+	(*token_index)++;
+	Vec3 position, side_1, side_2, intensity;
+	float point_spacing;
+	int i;
+	for(i = 0; i < NUM_LIGHTAREA_ELEMS; i++)
+	{
+		int string_index = get_string_token_index(buffer, tokens, *token_index, NUM_LIGHTAREA_ELEMS, lightarea_elem_tags);
+		switch(string_index)
+		{
+			case LIGHTAREA_POSITION:
+			get_float_array(3, position, buffer, tokens, *token_index + 1);
+			*token_index += 5;
+			break;
+			case LIGHTAREA_SIDE1:
+			get_float_array(3, side_1, buffer, tokens, *token_index + 1);
+			*token_index += 5;
+			break;
+			case LIGHTAREA_SIDE2:
+			get_float_array(3, side_2, buffer, tokens, *token_index + 1);
+			*token_index += 5;
+			break;
+			case LIGHTAREA_POINT_SPACING:
+			point_spacing = get_float(buffer, tokens, *token_index + 1);
+			*token_index += 2;
+			break;
+			case LIGHTAREA_INTENSITY:
+			get_float_array(3, intensity, buffer, tokens, *token_index + 1);
+			*token_index += 5;
+			break;
+			default:
+			printf("Extraneous parameter in lightarea in scene.\n");
+			exit(0);
+		}
+	}
+	Vec2 light_size = {magnitude3(side_1), magnitude3(side_2)};
+	int num_points[2] = {floor(light_size[0] / point_spacing) + 1, floor(light_size[1] / point_spacing) + 1};
+	int total_num_points = num_points[X] * num_points[Y];
+	divide3(intensity, total_num_points, intensity);
+	int light_index = *num_lights;
+	*num_lights += total_num_points;
+	if(*num_lights > *light_array_size) {
+		*lights = realloc(*lights, (*num_lights + DYNAMIC_ARRAY_INCREMENT - (*num_lights % DYNAMIC_ARRAY_INCREMENT)) * sizeof(Light));
+	}
+	Vec3 side_increment_1, side_increment_2, current_position;
+	divide3(side_1, num_points[X], side_increment_1);
+	divide3(side_2, num_points[Y], side_increment_2);
+	int x, y;
+	for(y = 0; y < num_points[Y]; y++)
+	{
+		multiply3(side_increment_2, y, current_position);
+		add3(current_position, position, current_position);
+		for(x = 0; x < num_points[X]; x++)
+		{
+			add3(current_position, side_increment_1, current_position);
+			init_light(&(*lights)[light_index], current_position, intensity);
+			light_index++;
+		}
+	}
+}
+
 void scene_load(FILE *scene_file, Camera **camera, int *num_objects, Object **objects, int *num_lights, Light **lights, Vec3 ambient_light_intensity, int resolution[2], Vec2 image_size, float focal_length)
 {
 	fseek(scene_file, 0, SEEK_END);
@@ -397,6 +461,9 @@ void scene_load(FILE *scene_file, Camera **camera, int *num_objects, Object **ob
 			case EPSILON:
 				epsilon = get_float(buffer, tokens, token_index);
 				token_index++;
+			break;
+			case LIGHTAREA:
+				scene_load_lightarea(buffer, tokens, &token_index, num_lights, &light_array_size, lights);
 			break;
 			default:
 			printf("Extraneous object type in scene\n");

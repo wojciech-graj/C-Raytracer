@@ -19,14 +19,20 @@ float get_closest_intersection(int num_objects, Object *objects, Line *ray, Obje
 	return min_distance;
 }
 
-bool is_intersection_in_distance(int num_objects, Object *objects, Line *ray, float min_distance, CommonObject *excl_object)
+bool is_intersection_in_distance(int num_objects, Object *objects, Line *ray, float min_distance, CommonObject *excl_object, Vec3 light_intensity)
 {
 	int i;
 	for(i = 0; i < num_objects; i++)
 	{
 		CommonObject *object = objects[i].common;
-		if(object != excl_object && object->intersects_in_range(objects[i], ray, min_distance))
-			return true;
+		if(object != excl_object)
+			if(object->intersects_in_range(objects[i], ray, min_distance))
+			{
+				if(object->transparent) {
+					multiply3v(light_intensity, object->kt, light_intensity);
+				} else
+					return true;
+			}
 	}
 	return false;
 }
@@ -88,13 +94,16 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 			multiply3(normal, 2 * a, reflected);
 			subtract3(reflected, light_ray.vector, reflected);
 
-			if(! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance, inside_object)) {
+			Vec3 incoming_light_intensity = {1., 1., 1.};
+			if(object != inside_object && ! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance, inside_object, incoming_light_intensity)) {
+				Vec3 intensity;
+				multiply3v(incoming_light_intensity, light->intensity, intensity);
 				Vec3 diffuse;
-				multiply3v(object->kd, light->intensity, diffuse);
+				multiply3v(object->kd, intensity, diffuse);
 				multiply3(diffuse, fmaxf(0., a), diffuse);
 
 				Vec3 specular;
-				multiply3v(object->ks, light->intensity, specular);
+				multiply3v(object->ks, intensity, specular);
 				multiply3(specular, fmaxf(0., pow(- dot3(reflected, ray->vector), object->shininess)), specular);
 
 				add3_3(obj_color, diffuse, specular, obj_color);

@@ -21,26 +21,33 @@
 	Vec3 kd; /*diffuse reflection constant*/\
 	Vec3 ka; /*ambient reflection constant*/\
 	Vec3 kr; /*specular interreflection constant*/\
+	Vec3 kt; /*transparency constant*/\
 	float shininess; /*shininess constant*/\
-	bool reflective; /*specular interreflection magnitude*/
+	float refractive_index;\
+	bool reflective;\
+	bool transparent;
 
 #define OBJECT_INIT_PARAMS\
 	Vec3 ks,\
 	Vec3 kd,\
 	Vec3 ka,\
 	Vec3 kr,\
-	float shininess
+	Vec3 kt,\
+	float shininess,\
+	float refractive_index
 
 #define OBJECT_INIT_VARS\
 	ks,\
 	kd,\
 	ka,\
 	kr,\
-	shininess
+	kt,\
+	shininess,\
+	refractive_index
 
 #define OBJECT_INIT_VARS_DECL\
-	Vec3 ks, kd, ka, kr;\
-	float shininess;
+	Vec3 ks, kd, ka, kr, kt;\
+	float shininess, refractive_index;
 
 #define OBJECT_INIT(type, name)\
 	type *name = malloc(sizeof(type));\
@@ -51,8 +58,11 @@
 	memcpy(name->kd, kd, sizeof(Vec3));\
 	memcpy(name->ka, ka, sizeof(Vec3));\
 	memcpy(name->kr, kr, sizeof(Vec3));\
+	memcpy(name->kt, kt, sizeof(Vec3));\
 	name->shininess = shininess;\
-	name->reflective = magnitude3(kr) > epsilon;
+	name->refractive_index = refractive_index;\
+	name->reflective = magnitude3(kr) > epsilon;\
+	name->transparent = magnitude3(kt) > epsilon;
 
 #define BOUNDING_SHAPE_PARAMS\
 	bool (*intersects)(BoundingShape, Line*);

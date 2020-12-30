@@ -4,7 +4,7 @@
 
 const char *scene_elem_tags[] = {"Camera", "Sphere", "Triangle", "Plane", "Mesh", "Light", "AmbientLight", "Epsilon"};
 const char *camera_elem_tags[] = {"position", "vector_x", "vector_y"};
-const char *object_elem_tags[] = {"ks", "kd", "ka", "kr", "shininess"};
+const char *object_elem_tags[] = {"ks", "kd", "ka", "kr", "kt", "shininess", "refractive_index"};
 const char *sphere_elem_tags[] = {"position", "radius"};
 const char *triangle_elem_tags[] = {"vertex_1", "vertex_2", "vertex_3"};
 const char *plane_elem_tags[] = {"position", "normal"};
@@ -79,6 +79,8 @@ FILE *get_file(char *buffer, jsmntok_t *tokens, int token_index)
 	return file;
 }
 
+//NOTE: SOME OF THE FOLLOWING FUNCTIONS COULD BE MORE OPTIMIZED, BUT FOR THE SAKE OF EXTENSIBILITY AND READABILITY THIS HAS NOT BEEN DONE
+
 Camera *scene_load_camera(char *buffer, jsmntok_t *tokens, int *token_index, int resolution[2], Vec2 image_size, float focal_length)
 {
 	assert(tokens[*token_index].size == NUM_CAMERA_ELEMS);
@@ -120,7 +122,7 @@ Camera *scene_load_camera(char *buffer, jsmntok_t *tokens, int *token_index, int
 }
 
 //token_index is the index of the first string
-void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index, Vec3 ks, Vec3 kd, Vec3 ka, Vec3 kr, float *shininess)
+void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index, Vec3 ks, Vec3 kd, Vec3 ka, Vec3 kr, Vec3 kt, float *shininess, float *refractive_index)
 {
 	int i;
 	for(i = 0; i < NUM_OBJECT_ELEMS; i++)
@@ -144,8 +146,16 @@ void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index,
 			get_float_array(3, kr, buffer, tokens, *token_index + 1);
 			*token_index += 5;
 			break;
+			case OBJECT_KT:
+			get_float_array(3, kt, buffer, tokens, *token_index + 1);
+			*token_index += 5;
+			break;
 			case OBJECT_SHININESS:
 			*shininess = get_float(buffer, tokens, *token_index + 1);
+			*token_index += 2;
+			break;
+			case OBJECT_REFRACTIVE_INDEX:
+			*refractive_index = get_float(buffer, tokens, *token_index + 1);
 			*token_index += 2;
 			break;
 			default:
@@ -155,14 +165,12 @@ void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index,
 	}
 }
 
-//NOTE: SOME OF THE FOLLOWING FUNCTIONS COULD BE MORE OPTIMIZED BECAUSE CERTAIN SHAPES ONLY HAVE Vec3 PARAMETERS, BUT FOR THE SAKE OF EXTENSIBILITY THIS HAS NOT BEEN DONE
-
 Sphere *scene_load_sphere(char *buffer, jsmntok_t *tokens, int *token_index)
 {
 	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_SPHERE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, &shininess);
+	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
 	Vec3 position;
 	float radius;
 	int i;
@@ -195,7 +203,7 @@ Triangle *scene_load_triangle(char *buffer, jsmntok_t *tokens, int *token_index)
 	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_TRIANGLE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, &shininess);
+	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
 	Vec3 vertices[3];
 	int i;
 	for(i = 0; i < NUM_TRIANGLE_ELEMS; i++)
@@ -230,7 +238,7 @@ Plane *scene_load_plane(char *buffer, jsmntok_t *tokens, int *token_index)
 	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_PLANE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, &shininess);
+	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
 	Vec3 position, normal;
 	int i;
 	for(i = 0; i < NUM_PLANE_ELEMS; i++)
@@ -253,8 +261,8 @@ Plane *scene_load_plane(char *buffer, jsmntok_t *tokens, int *token_index)
 	}
 	return init_plane(
 		OBJECT_INIT_VARS,
-		position,
-		normal);
+		normal,
+		position);
 }
 
 Mesh *scene_load_mesh(char *buffer, jsmntok_t *tokens, int *token_index)
@@ -262,7 +270,7 @@ Mesh *scene_load_mesh(char *buffer, jsmntok_t *tokens, int *token_index)
 	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_MESH_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, &shininess);
+	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
 	FILE *file;
 	Vec3 position, rotation;
 	float scale;

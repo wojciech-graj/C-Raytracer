@@ -19,28 +19,42 @@ float get_closest_intersection(int num_objects, Object *objects, Line *ray, Obje
 	return min_distance;
 }
 
-bool is_intersection_in_distance(int num_objects, Object *objects, Line *ray, float min_distance)
+bool is_intersection_in_distance(int num_objects, Object *objects, Line *ray, float min_distance, CommonObject *excl_object)
 {
 	int i;
 	for(i = 0; i < num_objects; i++)
 	{
-		if(objects[i].common->intersects_in_range(objects[i], ray, min_distance))
+		CommonObject *object = objects[i].common;
+		if(object != excl_object && object->intersects_in_range(objects[i], ray, min_distance))
 			return true;
 	}
 	return false;
 }
 
-void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, Light *lights, Line *ray, Vec3 kr, Vec3 color, int reflection_count)
+void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, Light *lights, Line *ray, Vec3 kr, Vec3 color, int bounce_count, CommonObject *inside_object)
 {
 	Object closest_object;
 	closest_object.common = NULL;
 	Vec3 normal;
-	float min_distance = get_closest_intersection(num_objects, objects, ray, &closest_object, normal);
+	float min_distance;
+
+	if(inside_object) {
+		Object obj;
+		obj.common = inside_object;
+		if(inside_object->get_intersection(obj, ray, &min_distance, normal)) {
+			closest_object.common = inside_object;
+		} else {
+			min_distance = get_closest_intersection(num_objects, objects, ray, &closest_object, normal);
+		}
+	} else {
+		min_distance = get_closest_intersection(num_objects, objects, ray, &closest_object, normal);
+	}
 	if(closest_object.common) {
 		CommonObject *object = closest_object.common;
 
 		normalize3(normal);
-		if(dot3(normal, ray->vector) > 0.f)
+		float b = dot3(normal, ray->vector);
+		if(b > 0.f)
 			multiply3(normal, -1.f, normal);
 
 		//Phong reflection model
@@ -74,7 +88,7 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 			multiply3(normal, 2 * a, reflected);
 			subtract3(reflected, light_ray.vector, reflected);
 
-			if(! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance)) {
+			if(! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance, inside_object)) {
 				Vec3 diffuse;
 				multiply3v(object->kd, light->intensity, diffuse);
 				multiply3(diffuse, fmaxf(0., a), diffuse);
@@ -90,12 +104,39 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 		add3(color, obj_color, color);
 
 		//reflection
-		if(object->reflective && reflection_count < max_bounces) {
-			Line reflection_ray;
-			memcpy(reflection_ray.position, point, sizeof(Vec3));
-			multiply3(normal, 2 * dot3(ray->vector, normal), reflection_ray.vector);
-			subtract3(ray->vector, reflection_ray.vector, reflection_ray.vector);
-			cast_ray(camera, num_objects, objects, num_lights, lights, &reflection_ray, object->kr, color, reflection_count + 1);
+		if(! inside_object && object->reflective && bounce_count < max_bounces) {
+			Vec3 reflected_kr;
+			multiply3v(kr, object->kr, reflected_kr);
+			if(minimum_light_intensity_sqr < sqr(reflected_kr[X]) + sqr(reflected_kr[Y]) + sqr(reflected_kr[Z])) {
+				Line reflection_ray;
+				memcpy(reflection_ray.position, point, sizeof(Vec3));
+				multiply3(normal, 2 * dot3(ray->vector, normal), reflection_ray.vector);
+				subtract3(ray->vector, reflection_ray.vector, reflection_ray.vector);
+				cast_ray(camera, num_objects, objects, num_lights, lights, &reflection_ray, reflected_kr, color, bounce_count + 1, NULL);
+			}
+		}
+
+		//transparency
+		if(object->transparent && bounce_count < max_bounces) {
+			Vec3 refracted_kt;
+			multiply3v(kr, object->kt, refracted_kt);
+			if(minimum_light_intensity_sqr < sqr(refracted_kt[X]) + sqr(refracted_kt[Y]) + sqr(refracted_kt[Z])) {
+				Line refraction_ray;
+				memcpy(refraction_ray.position, point, sizeof(Vec3));
+				float incident_angle = acosf(fabs(b));
+				float refractive_multiplier = inside_object ? (object->refractive_index) : (1.f / object->refractive_index);
+				float refracted_angle = asinf(sinf(incident_angle) * refractive_multiplier);
+				float delta_angle = refracted_angle - incident_angle;
+				Vec3 c, f, g, h;
+				cross(ray->vector, normal, c);
+				normalize3(c);
+				cross(c, ray->vector, f);
+				multiply3(ray->vector, cosf(delta_angle), g);
+				multiply3(f, sinf(delta_angle), h);
+				add3(g, h, refraction_ray.vector);
+				normalize3(refraction_ray.vector);
+				cast_ray(camera, num_objects, objects, num_lights, lights, &refraction_ray, refracted_kt, color, bounce_count + 1, object);
+			}
 		}
 	}
 }
@@ -121,7 +162,7 @@ void create_image(Camera *camera, int num_objects, Object *objects, int num_ligh
 			Vec3 color = {0., 0., 0.};
 			subtract3(pixel_position, camera->position, ray.vector);
 			normalize3(ray.vector);
-			cast_ray(camera, num_objects, objects, num_lights, lights, &ray, kr, color, 0);
+			cast_ray(camera, num_objects, objects, num_lights, lights, &ray, kr, color, 0, NULL);
 			multiply3(color, 255., color);
 			uint8_t *pixel = camera->image.pixels[pixel_index];
 			pixel[0] = fmaxf(fminf(color[0], 255.), 0.);
@@ -185,6 +226,9 @@ void process_arguments(int argc, char *argv[], FILE **scene_file, FILE **output_
 			case 5859050://-b
 			max_bounces = atoi(argv[i + 1]);
 			assert(max_bounces >= 0);
+			break;
+			case 5859049://-b
+			minimum_light_intensity_sqr = sqr(atof(argv[i + 1]));
 			break;
 			case 2085543063: //-fov
 			*fov = atoi(argv[i + 1]);

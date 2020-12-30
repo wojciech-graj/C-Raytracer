@@ -35,17 +35,17 @@ int get_string_index(int num_elems, const char **array, char *buffer, int string
 
 int get_string_token_index(char *buffer, jsmntok_t *tokens, int token_index, int num_elems, const char **elem_tags)
 {
-	assert(tokens[token_index].type == JSMN_STRING);
+	assert("ERROR: KEY IN JSON FILE IS NOT A STRING." && tokens[token_index].type == JSMN_STRING);
 	jsmntok_t *string_token = &tokens[token_index];
 	int string_length = string_token->end - string_token->start;
 	int string_index = get_string_index(num_elems, elem_tags, buffer, string_token->start, string_length);
-	assert(string_index != -1);
+	assert("ERROR: KEY IN JSON FILE IS NOT RECOGNIZED." && string_index != -1);
 	return string_index;
 }
 
 float get_float(char *buffer, jsmntok_t *tokens, int token_index)
 {
-	assert(tokens[token_index].type == JSMN_PRIMITIVE);
+	assert("ERROR: A VALUE IN THE JSON FILE IS NOT A FLOAT." && tokens[token_index].type == JSMN_PRIMITIVE);
 	jsmntok_t *float_token = &tokens[token_index];
 	int string_length = float_token->end - float_token->start;
 	char *first_char = &buffer[float_token->start];
@@ -57,7 +57,8 @@ float get_float(char *buffer, jsmntok_t *tokens, int token_index)
 
 void get_float_array(int num_elems, float *array, char *buffer, jsmntok_t *tokens, int token_index)
 {
-	assert(tokens[token_index].type == JSMN_ARRAY && tokens[token_index].size == num_elems);
+	assert("ERROR: A VALUE IN THE JSON FILE IS NOT AN ARRAY." && tokens[token_index].type == JSMN_ARRAY);
+	assert("ERROR: AN ARRAY IN THE JSON FILE CONTAINS AN INCORRECT AMOUNT OF VALUES." && tokens[token_index].size == num_elems);
 	int i;
 	for(i = 0; i < num_elems; i++)
 	{
@@ -68,7 +69,7 @@ void get_float_array(int num_elems, float *array, char *buffer, jsmntok_t *token
 
 FILE *get_file(char *buffer, jsmntok_t *tokens, int token_index)
 {
-	assert(tokens[token_index].type == JSMN_STRING);
+	assert("ERROR: A FILENAME IN THE JSON FILE IS NOT A STRING." && tokens[token_index].type == JSMN_STRING);
 	jsmntok_t *string_token = &tokens[token_index];
 	int filename_length = string_token->end - string_token->start;
 	char *first_char = &buffer[string_token->start];
@@ -76,7 +77,7 @@ FILE *get_file(char *buffer, jsmntok_t *tokens, int token_index)
 	strncpy(filename, first_char, filename_length);
 	filename[filename_length] = '\0';
 	FILE *file = fopen(filename, "rb");
-	assert(file);
+	assert("ERROR: UNABLE TO OPEN A FILE SPECIFIED IN JSON FILE." && file);
 	return file;
 }
 
@@ -84,7 +85,7 @@ FILE *get_file(char *buffer, jsmntok_t *tokens, int token_index)
 
 Camera *scene_load_camera(char *buffer, jsmntok_t *tokens, int *token_index, int resolution[2], Vec2 image_size, float focal_length)
 {
-	assert(tokens[*token_index].size == NUM_CAMERA_ELEMS);
+	assert("ERROR: CAMERA HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == NUM_CAMERA_ELEMS);
 
 	Vec3 position, vectors[2];
 
@@ -108,7 +109,7 @@ Camera *scene_load_camera(char *buffer, jsmntok_t *tokens, int *token_index, int
 			*token_index += 5;
 			break;
 			default:
-			printf("Extraneous parameter in camera in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN CAMERA.\n");
 			exit(0);
 		}
 	}
@@ -160,7 +161,7 @@ void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index,
 			*token_index += 2;
 			break;
 			default:
-			printf("Extraneous parameter in object in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN OBJECT.\n");
 			exit(0);
 		}
 	}
@@ -168,7 +169,7 @@ void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index,
 
 Sphere *scene_load_sphere(char *buffer, jsmntok_t *tokens, int *token_index)
 {
-	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_SPHERE_ELEMS));
+	assert("ERROR: SPHERE HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_SPHERE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
 	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
@@ -189,7 +190,7 @@ Sphere *scene_load_sphere(char *buffer, jsmntok_t *tokens, int *token_index)
 			*token_index += 2;
 			break;
 			default:
-			printf("Extraneous parameter in sphere in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN SPHERE.\n");
 			exit(0);
 		}
 	}
@@ -201,7 +202,7 @@ Sphere *scene_load_sphere(char *buffer, jsmntok_t *tokens, int *token_index)
 
 Triangle *scene_load_triangle(char *buffer, jsmntok_t *tokens, int *token_index)
 {
-	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_TRIANGLE_ELEMS));
+	assert("ERROR: TRIANGLE HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_TRIANGLE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
 	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
@@ -225,7 +226,7 @@ Triangle *scene_load_triangle(char *buffer, jsmntok_t *tokens, int *token_index)
 			*token_index += 5;
 			break;
 			default:
-			printf("Extraneous parameter in triangle in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN TRIANGLE.\n");
 			exit(0);
 		}
 	}
@@ -236,7 +237,7 @@ Triangle *scene_load_triangle(char *buffer, jsmntok_t *tokens, int *token_index)
 
 Plane *scene_load_plane(char *buffer, jsmntok_t *tokens, int *token_index)
 {
-	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_PLANE_ELEMS));
+	assert("ERROR: PLANE HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_PLANE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
 	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
@@ -256,7 +257,7 @@ Plane *scene_load_plane(char *buffer, jsmntok_t *tokens, int *token_index)
 			*token_index += 5;
 			break;
 			default:
-			printf("Extraneous parameter in plane in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN PLANE.\n");
 			exit(0);
 		}
 	}
@@ -268,7 +269,7 @@ Plane *scene_load_plane(char *buffer, jsmntok_t *tokens, int *token_index)
 
 Mesh *scene_load_mesh(char *buffer, jsmntok_t *tokens, int *token_index)
 {
-	assert(tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_MESH_ELEMS));
+	assert("ERROR: TRIANGLE MESH HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_MESH_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
 	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
@@ -298,7 +299,7 @@ Mesh *scene_load_mesh(char *buffer, jsmntok_t *tokens, int *token_index)
 			*token_index += 2;
 			break;
 			default:
-			printf("Extraneous parameter in mesh in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN TRIANGLE MESH.\n");
 			exit(0);
 		}
 	}
@@ -314,7 +315,7 @@ Mesh *scene_load_mesh(char *buffer, jsmntok_t *tokens, int *token_index)
 
 void scene_load_light(char *buffer, jsmntok_t *tokens, int *token_index, Light *light)
 {
-	assert(tokens[*token_index].size == NUM_LIGHT_ELEMS);
+	assert("ERROR: LIGHT HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == NUM_LIGHT_ELEMS);
 	(*token_index)++;
 	Vec3 position, intensity;
 	int i;
@@ -332,7 +333,7 @@ void scene_load_light(char *buffer, jsmntok_t *tokens, int *token_index, Light *
 			*token_index += 5;
 			break;
 			default:
-			printf("Extraneous parameter in light in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN LIGHT.\n");
 			exit(0);
 		}
 	}
@@ -341,7 +342,7 @@ void scene_load_light(char *buffer, jsmntok_t *tokens, int *token_index, Light *
 
 void scene_load_lightarea(char *buffer, jsmntok_t *tokens, int *token_index, int *num_lights, int *light_array_size, Light **lights)
 {
-	assert(tokens[*token_index].size == NUM_LIGHTAREA_ELEMS);
+	assert("ERROR: LIGHTAREA HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == NUM_LIGHTAREA_ELEMS);
 	(*token_index)++;
 	Vec3 position, side_1, side_2, intensity;
 	float point_spacing;
@@ -372,7 +373,7 @@ void scene_load_lightarea(char *buffer, jsmntok_t *tokens, int *token_index, int
 			*token_index += 5;
 			break;
 			default:
-			printf("Extraneous parameter in lightarea in scene.\n");
+			printf("ERROR: EXTRANEOUS PARAMETER IN LIGHTAREA.\n");
 			exit(0);
 		}
 	}
@@ -408,18 +409,18 @@ void scene_load(FILE *scene_file, Camera **camera, int *num_objects, Object **ob
 	unsigned int length = ftell(scene_file);
 	fseek(scene_file, 0, SEEK_SET);
 	char *buffer = malloc(length + 1);
-	assert(fread(buffer, 1, length, scene_file) == length);
+	assert("ERROR: UNABLE TO READ SCENE FILE." && fread(buffer, 1, length, scene_file) == length);
 	buffer[length] = '\0';
 
 	jsmn_parser parser;
 	jsmn_init(&parser);
 	int num_tokens = jsmn_parse(&parser, buffer, strlen(buffer), NULL, MAX_JSON_TOKENS);
-	assert(num_tokens <= MAX_JSON_TOKENS);
+	assert("ERROR: TOO MANY TOKENS IN SCENE FILE." && num_tokens <= MAX_JSON_TOKENS);
 
 	jsmntok_t tokens[num_tokens];
 	jsmn_init(&parser);
-	assert(jsmn_parse(&parser, buffer, strlen(buffer), tokens, num_tokens) >= 0);
-	assert(tokens[0].type == JSMN_OBJECT);
+	assert("ERROR: UNABLE TO READ CORRECT AMOUNT OF TOKENS FROM SCENE FILE." && jsmn_parse(&parser, buffer, strlen(buffer), tokens, num_tokens) == num_tokens);
+	assert("ERROR: FIRST TOKEN IN JSON FILE IS NOT AN OBJECT." && tokens[0].type == JSMN_OBJECT);
 	int token_index = tokens[0].start + 1;
 
 	int object_array_size = DYNAMIC_ARRAY_INCREMENT;
@@ -479,7 +480,7 @@ void scene_load(FILE *scene_file, Camera **camera, int *num_objects, Object **ob
 			if(*num_objects == object_array_size) {
 				object_array_size += DYNAMIC_ARRAY_INCREMENT;
 				*objects = realloc(*objects, object_array_size * sizeof(Object));
-				assert(*objects);
+				assert("ERROR: UNABLE TO ALLOCATE MEMORY FOR OBJECT ARRAY" && *objects);
 			}
 			break;
 			case LIGHT:
@@ -487,15 +488,17 @@ void scene_load(FILE *scene_file, Camera **camera, int *num_objects, Object **ob
 			if(*num_lights == light_array_size) {
 				light_array_size += DYNAMIC_ARRAY_INCREMENT;
 				*lights = realloc(*lights, light_array_size * sizeof(Light));
-				assert(*lights);
+				assert("ERROR: UNABLE TO ALLOCATE MEMORY FOR LIGHT ARRAY" && *lights);
 			}
 			break;
 		}
 	}
-	assert(camera && *num_objects > 0 && *num_lights > 0);
+	assert("ERROR: CAMERA NOT FOUND IN SCENE FILE." && camera);
+	assert("ERROR: NO OBJECTS HAVE BEEN FOUND IN SCENE FILE." && *num_objects > 0);
+	assert("ERROR: NO LIGHTS HAVE BEEN FOUND IN SCENE FILE." && *num_lights > 0);
 	*objects = realloc(*objects, *num_objects * sizeof(Object));
-	assert(*objects);
+	assert("ERROR: UNABLE TO ALLOCATE MEMORY FOR OBJECT ARRAY" && *objects);
 	*lights = realloc(*lights, *num_lights * sizeof(Light));
-	assert(*lights);
+	assert("ERROR: UNABLE TO ALLOCATE MEMORY FOR LIGHT ARRAY" && *lights);
 	free(buffer);
 }

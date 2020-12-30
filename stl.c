@@ -2,9 +2,9 @@
 
 uint32_t stl_get_num_triangles(FILE *file)
 {
-	assert(fseek(file, sizeof(uint8_t[80]), SEEK_SET) == 0);
+	assert("ERROR: UNABLE TO MOVE FILE POINTER IN STL FILE." && fseek(file, sizeof(uint8_t[80]), SEEK_SET) == 0);
 	uint32_t num_triangles;
-	assert(fread(&num_triangles, sizeof(uint32_t), 1, file) == 1);
+	assert("ERROR: UNABLE TO READ THE NUMBER OF TRIANGLES FROM STL FILE." && fread(&num_triangles, sizeof(uint32_t), 1, file) == 1);
 	return num_triangles;
 }
 
@@ -13,8 +13,8 @@ Mesh *stl_load(OBJECT_INIT_PARAMS, FILE *file, Vec3 position, Vec3 rot, float sc
 {
 	//ensure that file is binary instead of ascii
 	char header[5];
-	assert(fread(header, sizeof(char), 5, file) == 5);
-	assert(strncmp("solid", header, 5));
+	assert("ERROR: UNABLE TO READ STL FILE." && fread(header, sizeof(char), 5, file) == 5);
+	assert("ERROR: STL FILE USES ASCII ENCODING." && strncmp("solid", header, 5));
 
  	float a = cosf(rot[Z]) * sinf(rot[Y]);
 	float b = sinf(rot[Z]) * sinf(rot[Y]);
@@ -39,7 +39,7 @@ Mesh *stl_load(OBJECT_INIT_PARAMS, FILE *file, Vec3 position, Vec3 rot, float sc
 	for(i = 0; i < num_triangles; i++)
 	{
 		STLTriangle stl_triangle;
-		assert(fread(&stl_triangle, sizeof(STLTriangle), 1, file) == 1);
+		assert("ERROR: UNABLE TO READ TRIANGLE FROM STL FILE." && fread(&stl_triangle, sizeof(STLTriangle), 1, file) == 1);
 
 		int j;
 		for(j = 0; j < 3; j++)

@@ -1,5 +1,5 @@
 #include "main.h"
-//TODO: replace assert with proper error handling
+
 float get_closest_intersection(int num_objects, Object *objects, Line *ray, Object *closest_object, Vec3 closest_normal)
 {
 	Vec3 normal;
@@ -225,7 +225,7 @@ void process_arguments(int argc, char *argv[], FILE **scene_file, FILE **output_
 				NUM_THREADS = omp_get_max_threads();
 			} else {
 				NUM_THREADS = atoi(argv[i + 1]);
-				assert(NUM_THREADS <= omp_get_max_threads());
+				assert("ERROR: SPECIFIED NUMBER OF THREADS IS GREATER THAN THE AVAILABE NUMBER OF THREADS." && NUM_THREADS <= omp_get_max_threads());
 			}
 			#else
 			printf("Multithreading is disabled. To enable it, recompile the program with the -DMULTITHREADING parameter.\n");
@@ -234,23 +234,23 @@ void process_arguments(int argc, char *argv[], FILE **scene_file, FILE **output_
 			break;
 			case 5859050://-b
 			max_bounces = atoi(argv[i + 1]);
-			assert(max_bounces >= 0);
+			assert("ERROR: MAX NUMBER OF BOUNCES IS NEGATIVE." && max_bounces >= 0);
 			break;
 			case 5859049://-b
 			minimum_light_intensity_sqr = sqr(atof(argv[i + 1]));
 			break;
 			case 2085543063: //-fov
 			*fov = atoi(argv[i + 1]);
-			assert(*fov < 180 && *fov > 0);
+			assert("ERROR: FOV IS NOT IN RANGE: 180 > FOV > 0." && *fov < 180 && *fov > 0);
 			break;
 			default:
 			printf("Unrecognized argument: %s\nUse --help to find out which arguments can be used.\n", argv[i]);
 			exit(0);
 		}
 	}
-	assert(*scene_file);
-	assert(*output_file);
-	assert(resolution[X] > 0 && resolution[Y] > 0);
+	assert("ERROR: UNABLE TO OPEN SCENE FILE." && *scene_file);
+	assert("ERROR: UNABLE TO OPEN/CREATE OUTPUT FILE." && *output_file);
+	assert("ERROR: RESOLUTION IS NEGATIVE." && resolution[X] > 0 && resolution[Y] > 0);
 }
 
 int main(int argc, char *argv[])

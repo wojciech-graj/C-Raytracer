@@ -33,9 +33,9 @@ void init_camera(Camera *camera,
 
 void save_image(FILE *file, Image *image)
 {
-	fprintf(file, "P6\n%d %d\n255\n", image->resolution[X], image->resolution[Y]);
+	assert("ERROR: UNABLE TO WRITE IMAGE TO FILE" && fprintf(file, "P6\n%d %d\n255\n", image->resolution[X], image->resolution[Y]) > 0);
 	size_t num_pixels = image->resolution[X] * image->resolution[Y];
-    assert(fwrite(image->pixels, sizeof(Color), num_pixels, file) == num_pixels);
+    assert("ERROR: UNABLE TO WRITE IMAGE TO FILE" && fwrite(image->pixels, sizeof(Color), num_pixels, file) == num_pixels);
 }
 
 /*************************************************************

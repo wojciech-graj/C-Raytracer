@@ -113,7 +113,7 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 		add3(color, obj_color, color);
 
 		//reflection
-		if(! inside_object && object->reflective && bounce_count < max_bounces) {
+		if(inside_object != object && object->reflective && bounce_count < max_bounces) {
 			Vec3 reflected_kr;
 			multiply3v(kr, object->kr, reflected_kr);
 			if(minimum_light_intensity_sqr < sqr(reflected_kr[X]) + sqr(reflected_kr[Y]) + sqr(reflected_kr[Z])) {

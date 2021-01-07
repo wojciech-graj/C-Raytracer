@@ -53,6 +53,6 @@ Mesh *stl_load(OBJECT_INIT_PARAMS, FILE *file, Vec3 position, Vec3 rot, float sc
 		}
 		mesh_set_triangle(mesh, i, stl_triangle.vertices);
 	}
-	mesh_generate_bounding_sphere(mesh);
+	mesh_generate_bounding_cuboid(mesh);
 	return mesh;
 }

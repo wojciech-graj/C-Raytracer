@@ -71,11 +71,24 @@ void add2(Vec2 vec1, Vec2 vec2, Vec2 result)
 	result[Y] = vec1[Y] + vec2[Y];
 }
 
+void add2s(Vec2 vec1, float summand, Vec2 result)
+{
+	result[X] = vec1[X] + summand;
+	result[Y] = vec1[Y] + summand;
+}
+
 void add3(Vec3 vec1, Vec3 vec2, Vec3 result)
 {
 	result[X] = vec1[X] + vec2[X];
 	result[Y] = vec1[Y] + vec2[Y];
 	result[Z] = vec1[Z] + vec2[Z];
+}
+
+void add3s(Vec3 vec1, float summand, Vec3 result)
+{
+	result[X] = vec1[X] + summand;
+	result[Y] = vec1[Y] + summand;
+	result[Z] = vec1[Z] + summand;
 }
 
 void add3_3(Vec3 vec1, Vec3 vec2, Vec3 vec3, Vec3 result)
@@ -91,11 +104,24 @@ void subtract2(Vec2 vec1, Vec2 vec2, Vec2 result)
 	result[Y] = vec1[Y] - vec2[Y];
 }
 
+void subtract2s(Vec2 vec1, float subtrahend, Vec2 result)
+{
+	result[X] = vec1[X] - subtrahend;
+	result[Y] = vec1[Y] - subtrahend;
+}
+
 void subtract3(Vec3 vec1, Vec3 vec2, Vec3 result)
 {
 	result[X] = vec1[X] - vec2[X];
 	result[Y] = vec1[Y] - vec2[Y];
 	result[Z] = vec1[Z] - vec2[Z];
+}
+
+void subtract3s(Vec3 vec1, float subtrahend, Vec3 result)
+{
+	result[X] = vec1[X] - subtrahend;
+	result[Y] = vec1[Y] - subtrahend;
+	result[Z] = vec1[Z] - subtrahend;
 }
 
 void normalize2(Vec2 vec)

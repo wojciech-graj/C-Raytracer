@@ -62,15 +62,83 @@ bool intersects_bounding_sphere(BoundingShape shape, Line *ray)
 {
 	BoundingSphere *sphere = shape.sphere;
 	float distance;//NOTE: maybe this value could be used to check if something is in front of the mesh, and if so, don't check the triangles
-	return line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, &distance);
+	return line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, &distance);
 }
 
-BoundingSphere *init_bounding_sphere(Vec3 position, float radius)
+BoundingSphere *init_bounding_sphere(BOUNDING_SHAPE_INIT_PARAMS, Vec3 position, float radius)
 {
 	BOUNDING_SHAPE_INIT(BoundingSphere, bounding_sphere);
 	memcpy(bounding_sphere->position, position, sizeof(Vec3));
 	bounding_sphere->radius = radius;
 	return bounding_sphere;
+}
+
+/*************************************************************
+*	BOUNDING cuboid
+*/
+
+typedef struct BoundingCuboid {
+	BOUNDING_SHAPE_PARAMS
+	Vec3 corners[2];
+} BoundingCuboid;
+
+bool intersects_bounding_cuboid(BoundingShape shape, Line *ray)
+{
+	BoundingCuboid *cuboid = shape.cuboid;
+
+	float tmin, tmax, tymin, tymax;
+
+	float divx = 1 / ray->vector[X];
+	if(divx >= 0) {
+		tmin = (cuboid->corners[0][X] - ray->position[X]) * divx;
+		tmax = (cuboid->corners[1][X] - ray->position[X]) * divx;
+	} else {
+		tmin = (cuboid->corners[1][X] - ray->position[X]) * divx;
+		tmax = (cuboid->corners[0][X] - ray->position[X]) * divx;
+	}
+	float divy = 1 / ray->vector[Y];
+	if(divy >= 0) {
+		tymin = (cuboid->corners[0][Y] - ray->position[Y]) * divy;
+		tymax = (cuboid->corners[1][Y] - ray->position[Y]) * divy;
+	} else {
+		tymin = (cuboid->corners[1][Y] - ray->position[Y]) * divy;
+		tymax = (cuboid->corners[0][Y] - ray->position[Y]) * divy;
+	}
+
+	if ((tmin > tymax) || (tymin > tmax))
+        return false;
+    if (tymin > tmin)
+        tmin = tymin;
+    if (tymax < tmax)
+        tmax = tymax;
+
+	float tzmin, tzmax;
+
+	float divz = 1 / ray->vector[Z];
+	if(divz >= 0) {
+		tzmin = (cuboid->corners[0][Z] - ray->position[Z]) * divz;
+		tzmax = (cuboid->corners[1][Z] - ray->position[Z]) * divz;
+	} else {
+		tzmin = (cuboid->corners[1][Z] - ray->position[Z]) * divz;
+		tzmax = (cuboid->corners[0][Z] - ray->position[Z]) * divz;
+	}
+
+	if(tmin > tzmax || tzmin > tmax)
+		return false;
+	/* The following code snippet can be used for bounds checking
+	if(tzmin > tmin)
+		tmin = tzmin;
+	if(tzmax < tmax)
+		tmax = tzmax;
+	return(tmin < t1 && tmax > t0);*/
+	return true;
+}
+
+BoundingCuboid *init_bounding_cuboid(BOUNDING_SHAPE_INIT_PARAMS, Vec3 corners[2])
+{
+	BOUNDING_SHAPE_INIT(BoundingCuboid, bounding_cuboid);
+	memcpy(bounding_cuboid->corners, corners, sizeof(Vec3[2]));
+	return bounding_cuboid;
 }
 
 /*************************************************************
@@ -105,7 +173,7 @@ bool get_intersection_mesh(Object object, Line *ray, float *distance, Vec3 norma
 		for(i = 0; i < mesh->num_triangles; i++)
 		{
 			MeshTriangle *triangle = &mesh->triangles[i];
-			if(moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, &cur_distance)) {
+			if(moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, mesh->epsilon, &cur_distance)) {
 				if(cur_distance < *distance) {
 					*distance = cur_distance;
 					closest_triangle = triangle;
@@ -135,7 +203,7 @@ bool intersects_in_range_mesh(Object object, Line *ray, float min_distance)
 		for(i = 0; i < mesh->num_triangles; i++)
 		{
 			MeshTriangle *triangle = &mesh->triangles[i];
-			if(moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, &distance)) {
+			if(moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, mesh->epsilon, &distance)) {
 				if(distance < min_distance)
 					return true;
 			}
@@ -167,6 +235,30 @@ void mesh_set_triangle(Mesh *mesh, uint32_t index, Vec3 vertices[3])
 	subtract3(vertices[1], vertices[0], triangle->edges[0]);
 	subtract3(vertices[2], vertices[0], triangle->edges[1]);
 	cross(triangle->edges[0], triangle->edges[1], triangle->normal);
+}
+
+void mesh_generate_bounding_cuboid(Mesh *mesh)
+{
+	Vec3 corners[2] = {
+		{FLT_MAX, FLT_MAX, FLT_MAX},
+		{FLT_MIN, FLT_MIN, FLT_MIN}};
+	uint32_t triangle_index;
+	int vertex_index, direction;
+	for(triangle_index = 0; triangle_index < mesh->num_triangles; triangle_index++)
+	{
+		for(vertex_index = 0; vertex_index < 3; vertex_index++)
+		{
+			float *vertex = mesh->triangles[triangle_index].vertices[vertex_index];
+			for(direction = 0; direction < 3; direction++)
+			{
+				if(vertex[direction] < corners[0][direction])
+					corners[0][direction] = vertex[direction];
+				if(vertex[direction] > corners[1][direction])
+					corners[1][direction] = vertex[direction];
+			}
+		}
+	}
+	mesh->bounding_shape.cuboid = init_bounding_cuboid(mesh->epsilon, corners);
 }
 
 void mesh_generate_bounding_sphere(Mesh *mesh)
@@ -225,7 +317,7 @@ void mesh_generate_bounding_sphere(Mesh *mesh)
 			subtract3(vertex, sphere_position, sphere_to_point);
 			float distance_sqr = sqr(sphere_to_point[0]) + sqr(sphere_to_point[1]) + sqr(sphere_to_point[2]);
 			if(sphere_radius_sqr < distance_sqr) {
-				float half_distance = .5f * (sqrtf(distance_sqr) - sphere_radius) + epsilon;
+				float half_distance = .5f * (sqrtf(distance_sqr) - sphere_radius) + mesh->epsilon;
 				sphere_radius += half_distance;
 				sphere_radius_sqr = sqr(sphere_radius);
 				normalize3(sphere_to_point);
@@ -235,7 +327,7 @@ void mesh_generate_bounding_sphere(Mesh *mesh)
 		}
 	}
 
-	mesh->bounding_shape.sphere = init_bounding_sphere(sphere_position, sphere_radius);
+	mesh->bounding_shape.sphere = init_bounding_sphere(mesh->epsilon, sphere_position, sphere_radius);
 }
 
 /*************************************************************
@@ -246,41 +338,50 @@ typedef struct Sphere {
 	OBJECT_PARAMS
 	Vec3 position;
 	float radius;
+	BoundingShape bounding_shape;
 } Sphere;
 
 bool get_intersection_sphere(Object object, Line *ray, float *distance, Vec3 normal)
 {
 	Sphere *sphere = object.sphere;
-	bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, distance);
-	if(intersects) {
-		Vec3 position;
-		multiply3(ray->vector, *distance, position);
-		add3(position, ray->position, position);
-		subtract3(position, sphere->position, normal);
-		return true;
-	} else
-		return false;
+	if(sphere->bounding_shape.common->intersects(sphere->bounding_shape, ray)) {
+		bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, distance);
+		if(intersects) {
+			Vec3 position;
+			multiply3(ray->vector, *distance, position);
+			add3(position, ray->position, position);
+			subtract3(position, sphere->position, normal);
+			return true;
+		}
+	}
+	return false;
 }
 
 bool intersects_in_range_sphere(Object object, Line *ray, float min_distance)
 {
 	Sphere *sphere = object.sphere;
-	float distance;
-	bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, &distance);
-	if(intersects && distance < min_distance)
-		return true;
-	else
-		return false;
+	if(sphere->bounding_shape.common->intersects(sphere->bounding_shape, ray)) {
+		float distance;
+		bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, &distance);
+		if(intersects && distance < min_distance)
+			return true;
+	}
+	return false;
 }
 
 void delete_sphere(Object object)
 {
+	free(object.sphere->bounding_shape.common);
 	free(object.common);
 }
 
 Sphere *init_sphere(OBJECT_INIT_PARAMS, Vec3 position, float radius)
 {
 	OBJECT_INIT(Sphere, sphere);
+	Vec3 corners[2];
+	subtract3s(position, radius, corners[0]);
+	add3s(position, radius, corners[1]);
+	sphere->bounding_shape.cuboid = init_bounding_cuboid(sphere->epsilon, corners);
 	memcpy(sphere->position, position, sizeof(Vec3));
 	sphere->radius = radius;
 	return sphere;
@@ -300,7 +401,7 @@ typedef struct Triangle {//triangle ABC
 bool get_intersection_triangle(Object object, Line *ray, float *distance, Vec3 normal)
 {
 	Triangle *triangle = object.triangle;
-	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, distance);
+	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, triangle->epsilon, distance);
 	if(intersects) {
 		memcpy(normal, triangle->normal, sizeof(Vec3));
 		return true;
@@ -312,7 +413,7 @@ bool intersects_in_range_triangle(Object object, Line *ray, float min_distance)
 {
 	Triangle *triangle = object.triangle;
 	float distance;
-	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, &distance);
+	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, triangle->epsilon, &distance);
 	if(intersects && distance < min_distance)
 		return true;
 	else
@@ -348,10 +449,10 @@ bool get_intersection_plane(Object object, Line *ray, float *distance, Vec3 norm
 {
 	Plane *plane = object.plane;
 	float a = dot3(plane->normal, ray->vector);
-	if(a < epsilon && a > -epsilon) //ray is parallel to line
+	if(fabsf(a) < plane->epsilon) //ray is parallel to line
 		return false;
 	*distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
-	if(*distance > epsilon) {
+	if(*distance > plane->epsilon) {
 		memcpy(normal, plane->normal, sizeof(Vec3));
 		return true;
 	} else
@@ -362,10 +463,10 @@ bool intersects_in_range_plane(Object object, Line *ray, float min_distance)
 {
 	Plane *plane = object.plane;
 	float a = dot3(plane->normal, ray->vector);
-	if(a < epsilon && a > -epsilon) //ray is parallel to line
+	if(fabsf(a) < plane->epsilon) //ray is parallel to line
 		return false;
 	float distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
-	if(distance > epsilon && distance < min_distance)
+	if(distance > plane->epsilon && distance < min_distance)
 		return true;
 	else
 		return false;

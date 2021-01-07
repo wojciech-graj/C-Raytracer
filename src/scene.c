@@ -2,9 +2,9 @@
 
 #include "jsmn.h"
 
-const char *scene_elem_tags[] = {"Camera", "Sphere", "Triangle", "Plane", "Mesh", "Light", "AmbientLight", "Epsilon", "LightArea"};
+const char *scene_elem_tags[] = {"Camera", "Sphere", "Triangle", "Plane", "Mesh", "Light", "AmbientLight", "LightArea"};
 const char *camera_elem_tags[] = {"position", "vector_x", "vector_y"};
-const char *object_elem_tags[] = {"ks", "kd", "ka", "kr", "kt", "shininess", "refractive_index"};
+const char *object_elem_tags[] = {"ks", "kd", "ka", "kr", "kt", "shininess", "refractive_index", "epsilon"};
 const char *sphere_elem_tags[] = {"position", "radius"};
 const char *triangle_elem_tags[] = {"vertex_1", "vertex_2", "vertex_3"};
 const char *plane_elem_tags[] = {"position", "normal"};
@@ -124,7 +124,7 @@ Camera *scene_load_camera(char *buffer, jsmntok_t *tokens, int *token_index, int
 }
 
 //token_index is the index of the first string
-void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index, Vec3 ks, Vec3 kd, Vec3 ka, Vec3 kr, Vec3 kt, float *shininess, float *refractive_index)
+void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index, Vec3 ks, Vec3 kd, Vec3 ka, Vec3 kr, Vec3 kt, float *shininess, float *refractive_index, float *epsilon)
 {
 	int i;
 	for(i = 0; i < NUM_OBJECT_ELEMS; i++)
@@ -160,6 +160,10 @@ void scene_load_object_params(char *buffer, jsmntok_t *tokens, int *token_index,
 			*refractive_index = get_float(buffer, tokens, *token_index + 1);
 			*token_index += 2;
 			break;
+			case OBJECT_EPSILON:
+			*epsilon = get_float(buffer, tokens, *token_index + 1);
+			*token_index += 2;
+			break;
 			default:
 			printf("ERROR: EXTRANEOUS PARAMETER IN OBJECT.\n");
 			exit(0);
@@ -172,7 +176,7 @@ Sphere *scene_load_sphere(char *buffer, jsmntok_t *tokens, int *token_index)
 	assert("ERROR: SPHERE HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_SPHERE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
+	scene_load_object_params(OBJECT_LOAD_VARS);
 	Vec3 position;
 	float radius;
 	int i;
@@ -205,7 +209,7 @@ Triangle *scene_load_triangle(char *buffer, jsmntok_t *tokens, int *token_index)
 	assert("ERROR: TRIANGLE HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_TRIANGLE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
+	scene_load_object_params(OBJECT_LOAD_VARS);
 	Vec3 vertices[3];
 	int i;
 	for(i = 0; i < NUM_TRIANGLE_ELEMS; i++)
@@ -240,7 +244,7 @@ Plane *scene_load_plane(char *buffer, jsmntok_t *tokens, int *token_index)
 	assert("ERROR: PLANE HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_PLANE_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
+	scene_load_object_params(OBJECT_LOAD_VARS);
 	Vec3 position, normal;
 	int i;
 	for(i = 0; i < NUM_PLANE_ELEMS; i++)
@@ -272,7 +276,7 @@ Mesh *scene_load_mesh(char *buffer, jsmntok_t *tokens, int *token_index)
 	assert("ERROR: TRIANGLE MESH HAS AN INCORRECT NUMBER OF PARAMTERS." && tokens[*token_index].size == (NUM_OBJECT_ELEMS + NUM_MESH_ELEMS));
 	(*token_index)++;
 	OBJECT_INIT_VARS_DECL;
-	scene_load_object_params(buffer, tokens, token_index, ks, kd, ka, kr, kt, &shininess, &refractive_index);
+	scene_load_object_params(OBJECT_LOAD_VARS);
 	FILE *file;
 	Vec3 position, rotation;
 	float scale;
@@ -458,10 +462,6 @@ void scene_load(FILE *scene_file, Camera **camera, int *num_objects, Object **ob
 			case AMBIENTLIGHT:
 				get_float_array(3, ambient_light_intensity, buffer, tokens, token_index);
 				token_index += 4;
-			break;
-			case EPSILON:
-				epsilon = get_float(buffer, tokens, token_index);
-				token_index++;
 			break;
 			case LIGHTAREA:
 				scene_load_lightarea(buffer, tokens, &token_index, num_lights, &light_array_size, lights);

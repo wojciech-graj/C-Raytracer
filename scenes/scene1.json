@@ -1,6 +1,5 @@
 {
 	"AmbientLight": [0.1, 0.1, 0.1],
-	"Epsilon": 0.0001,
 	"Camera":
 	{
 		"position": [0.0, -4.0, -1.0],
@@ -16,6 +15,7 @@
 		"kt": [0.0, 0.0, 0.0],
 		"shininess": 15.0,
 		"refractive_index": 1.0,
+		"epsilon": 0.0001,
 		"position": [0.0, -3.0, 9.0],
 		"radius": 3.0
 	},
@@ -28,6 +28,7 @@
 		"kt": [0.0, 0.0, 0.0],
 		"shininess": 15.0,
 		"refractive_index": 1.0,
+		"epsilon": 0.0001,
 		"position": [4.0, -1.5, 5.0],
 		"radius": 1.5
 	},
@@ -40,6 +41,7 @@
 		"kt": [0.0, 0.0, 0.0],
 		"shininess": 15.0,
 		"refractive_index": 1.0,
+		"epsilon": 0.0001,
 		"position": [-4.0, -0.8, 5.0],
 		"radius": 0.8
 	},
@@ -52,6 +54,7 @@
 		"kt": [0.0, 0.0, 0.0],
 		"shininess": 15.0,
 		"refractive_index": 1.0,
+		"epsilon": 0.0001,
 		"position": [0.0, 0.0, 0.0],
 		"normal": [0.0, 1.0, 0.0]
 	},

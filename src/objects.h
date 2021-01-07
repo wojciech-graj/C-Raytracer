@@ -24,6 +24,7 @@
 	Vec3 kt; /*transparency constant*/\
 	float shininess; /*shininess constant*/\
 	float refractive_index;\
+	float epsilon;\
 	bool reflective;\
 	bool transparent;
 
@@ -34,7 +35,8 @@
 	Vec3 kr,\
 	Vec3 kt,\
 	float shininess,\
-	float refractive_index
+	float refractive_index,\
+	float epsilon
 
 #define OBJECT_INIT_VARS\
 	ks,\
@@ -43,11 +45,12 @@
 	kr,\
 	kt,\
 	shininess,\
-	refractive_index
+	refractive_index,\
+	epsilon
 
 #define OBJECT_INIT_VARS_DECL\
 	Vec3 ks, kd, ka, kr, kt;\
-	float shininess, refractive_index;
+	float shininess, refractive_index, epsilon;
 
 #define OBJECT_INIT(type, name)\
 	type *name = malloc(sizeof(type));\
@@ -61,15 +64,34 @@
 	memcpy(name->kt, kt, sizeof(Vec3));\
 	name->shininess = shininess;\
 	name->refractive_index = refractive_index;\
+	name->epsilon = epsilon;\
 	name->reflective = magnitude3(kr) > epsilon;\
 	name->transparent = magnitude3(kt) > epsilon;
 
+#define OBJECT_LOAD_VARS\
+	buffer,\
+	tokens,\
+	token_index,\
+	ks,\
+	kd,\
+	ka,\
+	kr,\
+	kt,\
+	&shininess,\
+	&refractive_index,\
+	&epsilon
+
 #define BOUNDING_SHAPE_PARAMS\
-	bool (*intersects)(BoundingShape, Line*);
+	bool (*intersects)(BoundingShape, Line*);\
+	float epsilon;
+
+#define BOUNDING_SHAPE_INIT_PARAMS\
+	float epsilon
 
 #define BOUNDING_SHAPE_INIT(type, name)\
 	type *name = malloc(sizeof(type));\
-	name->intersects = &intersects_##name;
+	name->intersects = &intersects_##name;\
+	name->epsilon = epsilon;
 
 typedef struct Image Image;
 typedef struct Camera Camera;
@@ -105,6 +127,7 @@ typedef union Object Object;
 
 typedef struct CommonBoundingShape CommonBoundingShape;
 typedef struct BoundingSphere BoundingSphere;
+typedef struct BoundingCuboid BoundingCuboid;
 typedef union BoundingShape BoundingShape;
 
 typedef struct CommonObject {
@@ -126,6 +149,7 @@ typedef struct CommonBoundingShape {
 typedef union BoundingShape {
 	CommonBoundingShape *common;
 	BoundingSphere *sphere;
+	BoundingCuboid *cuboid;
 } BoundingShape;
 
 void init_camera(Camera *camera, Vec3 position, Vec3 vectors[2], float focal_length, int image_resolution[2], Vec2 image_size);
@@ -136,6 +160,7 @@ void init_light(Light *light, Vec3 position, Vec3 intensity);
 Mesh *init_mesh(OBJECT_INIT_PARAMS, uint32_t num_triangles);
 void mesh_set_triangle(Mesh *mesh, uint32_t index, Vec3 vertices[3]);
 void mesh_generate_bounding_sphere(Mesh *mesh);
+void mesh_generate_bounding_cuboid(Mesh *mesh);
 
 Triangle *init_triangle(OBJECT_INIT_PARAMS, Vec3 vertices[3]);
 

@@ -63,7 +63,7 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 		if(b > 0.f)
 			multiply3(normal, -1.f, normal);
 
-		//Phong reflection model
+		//LIGHTING MODEL
 		Vec3 obj_color;
 
 		Vec3 point;
@@ -89,22 +89,34 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 
 			float a = dot3(light_ray.vector, normal);
 
-			//direction of a reflected ray of light from point
-			Vec3 reflected;
-			multiply3(normal, 2 * a, reflected);
-			subtract3(reflected, light_ray.vector, reflected);
-
 			Vec3 incoming_light_intensity = {1., 1., 1.};
-			if(object != inside_object && ! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance, inside_object, incoming_light_intensity)) {
+			if(object != inside_object && ! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance, (inside_object == object) ? inside_object : NULL, incoming_light_intensity)) {
 				Vec3 intensity;
 				multiply3v(incoming_light_intensity, light->intensity, intensity);
 				Vec3 diffuse;
 				multiply3v(object->kd, intensity, diffuse);
 				multiply3(diffuse, fmaxf(0., a), diffuse);
 
+				Vec3 reflected;
+				float specular_mul;
+				switch(reflection_model)
+				{
+					case REFLECTION_PHONG:
+					multiply3(normal, 2 * a, reflected);
+					subtract3(reflected, light_ray.vector, reflected);
+					specular_mul = - dot3(reflected, ray->vector);
+					break;
+					case REFLECTION_BLINN:
+					multiply3(light_ray.vector, -1.f, reflected);
+					add3(reflected, ray->vector, reflected);
+					normalize3(reflected);
+					specular_mul = - dot3(normal, reflected);
+					break;
+				}
 				Vec3 specular;
 				multiply3v(object->ks, intensity, specular);
-				multiply3(specular, fmaxf(0., pow(- dot3(reflected, ray->vector), object->shininess)), specular);
+				multiply3(specular, fmaxf(0., powf(specular_mul, object->shininess)), specular);
+
 
 				add3_3(obj_color, diffuse, specular, obj_color);
 			}
@@ -236,8 +248,22 @@ void process_arguments(int argc, char *argv[], FILE **scene_file, FILE **output_
 			max_bounces = atoi(argv[i + 1]);
 			assert("ERROR: MAX NUMBER OF BOUNCES IS NEGATIVE." && max_bounces >= 0);
 			break;
-			case 5859049://-b
+			case 5859049://-a
 			minimum_light_intensity_sqr = sqr(atof(argv[i + 1]));
+			break;
+			case 5859067://-s
+			switch(djb_hash(argv[i + 1]))
+			{
+				case 187940251://phong
+				reflection_model = REFLECTION_PHONG;
+				break;
+				case 175795714://blinn
+				reflection_model = REFLECTION_BLINN;
+				break;
+				default:
+				printf("Unrecognized reflection model: %s.\n", argv[i+1]);
+				exit(0);
+			}
 			break;
 			case 2085543063: //-fov
 			*fov = atoi(argv[i + 1]);

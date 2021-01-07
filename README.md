@@ -65,7 +65,7 @@ The next feature on the chopping block was adding shadows. This was perhaps one 
 ###### 2020-12-28 \<c6946be94c74066699da6b3824c3d8425b9fc42f>
 One of the main reasons for using raytracing to render images is the ability to have light reflect multiple times. In order to create reflections, another constant was added to objects:\
 kr [specular interreflection constant].\
-Specular interreflection is different to the aforementioned specular reflection because specular reflection only encompasses the reflection of light from a light source, whereas specular interreflection is the reflection of the vector projected from the eye onto other parts of the scene. In order to calculate the vector of the reflection vector, the incident vector needs to be reflected across the surface normal. Then, this reflection ray can have the same process of calculating intersections performed on it until it eventually reaches a surface which is not reflective.\
+Specular interreflection is different to the aforementioned specular reflection because specular reflection only encompasses the reflection of light from a light source, whereas specular interreflection is the reflection of the ray projected from the eye onto other parts of the scene. In order to calculate the vector of the reflection ray, the incident ray needs to be reflected across the surface normal. Then, this reflection ray can have the same process of calculating intersections performed on it until it eventually reaches a surface which is not reflective.\
 ![HISTORY6](/images/history/history_6.png)
 
 ###### 2020-12-29 \<0ef89edf60b03c8001f39edf47113ba0db179f0e>

@@ -1,19 +1,18 @@
 #ifndef OBJECTS_H
 #define OBJECTS_H
 
-#include <string.h>
-#include <stdlib.h>
 #include <stdbool.h>
-#include <float.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <assert.h>
 
 #include "global.h"
 #include "vector.h"
-#include "algorithm.h"
 
-#define OBJECT_PARAMS\
+/*******************************************************************************
+*	OBJECT
+*******************************************************************************/
+
+#define OBJECT_MEMBERS\
 	bool (*get_intersection)(Object, Line*, float*, Vec3);\
 	bool (*intersects_in_range)(Object, Line*, float);\
 	void (*delete)(Object);\
@@ -26,7 +25,7 @@
 	float refractive_index;\
 	float epsilon;\
 	bool reflective;\
-	bool transparent;
+	bool transparent
 
 #define OBJECT_INIT_PARAMS\
 	Vec3 ks,\
@@ -50,7 +49,7 @@
 
 #define OBJECT_INIT_VARS_DECL\
 	Vec3 ks, kd, ka, kr, kt;\
-	float shininess, refractive_index, epsilon;
+	float shininess, refractive_index, epsilon
 
 #define OBJECT_INIT(type, name)\
 	type *name = malloc(sizeof(type));\
@@ -68,7 +67,7 @@
 	name->reflective = magnitude3(kr) > epsilon;\
 	name->transparent = magnitude3(kt) > epsilon;
 
-#define OBJECT_LOAD_VARS\
+#define SCENE_OBJECT_LOAD_VARS\
 	buffer,\
 	tokens,\
 	token_index,\
@@ -81,9 +80,41 @@
 	&refractive_index,\
 	&epsilon
 
-#define BOUNDING_SHAPE_PARAMS\
+typedef struct Plane Plane;
+typedef struct Sphere Sphere;
+typedef struct Triangle Triangle;
+typedef struct MeshTriangle MeshTriangle;
+typedef struct Mesh Mesh;
+typedef struct CommonObject CommonObject;
+typedef union Object Object;
+
+typedef struct CommonObject {
+	OBJECT_MEMBERS;
+} CommonObject;
+
+typedef union Object {
+	CommonObject *common;
+	Sphere *sphere;
+	Triangle *triangle;
+	Plane *plane;
+	Mesh *mesh;
+} Object;
+
+Mesh *init_mesh(OBJECT_INIT_PARAMS, uint32_t num_triangles);
+void mesh_set_triangle(Mesh *mesh, uint32_t index, Vec3 vertices[3]);
+void mesh_generate_bounding_sphere(Mesh *mesh);
+void mesh_generate_bounding_cuboid(Mesh *mesh);
+Triangle *init_triangle(OBJECT_INIT_PARAMS, Vec3 vertices[3]);
+Sphere *init_sphere(OBJECT_INIT_PARAMS, Vec3 position, float radius);
+Plane *init_plane(OBJECT_INIT_PARAMS, Vec3 normal, Vec3 point);
+
+/*******************************************************************************
+*	BOUNDING SHAPE
+*******************************************************************************/
+
+#define BOUNDING_SHAPE_MEMBERS\
 	bool (*intersects)(BoundingShape, Line*);\
-	float epsilon;
+	float epsilon
 
 #define BOUNDING_SHAPE_INIT_PARAMS\
 	float epsilon
@@ -93,12 +124,34 @@
 	name->intersects = &intersects_##name;\
 	name->epsilon = epsilon;
 
+typedef struct CommonBoundingShape CommonBoundingShape;
+typedef struct BoundingSphere BoundingSphere;
+typedef struct BoundingCuboid BoundingCuboid;
+typedef union BoundingShape BoundingShape;
+
+typedef struct CommonBoundingShape {
+	BOUNDING_SHAPE_MEMBERS;
+} CommonBoundingShape;
+
+typedef union BoundingShape {
+	CommonBoundingShape *common;
+	BoundingSphere *sphere;
+	BoundingCuboid *cuboid;
+} BoundingShape;
+
+BoundingCuboid *init_bounding_cuboid(BOUNDING_SHAPE_INIT_PARAMS, Vec3 corners[2]);
+BoundingSphere *init_bounding_sphere(BOUNDING_SHAPE_INIT_PARAMS, Vec3 position, float radius);
+
+/*******************************************************************************
+*	MISCELLANEOUS
+*******************************************************************************/
+
 typedef struct Image Image;
 typedef struct Camera Camera;
 typedef struct Light Light;
 
 typedef struct Image {
-	int resolution[2];
+	unsigned resolution[2];
 	Vec2 size;
 	Vec3 corner; //Top left corner of image
 	Vec3 vectors[2]; //Vectors for image plane traversal by 1 pixel in X and Y directions
@@ -117,56 +170,8 @@ typedef struct Light {
 	Vec3 intensity;
 } Light;
 
-typedef struct Plane Plane;
-typedef struct Sphere Sphere;
-typedef struct Triangle Triangle;
-typedef struct MeshTriangle MeshTriangle;
-typedef struct Mesh Mesh;
-typedef struct CommonObject CommonObject;
-typedef union Object Object;
-
-typedef struct CommonBoundingShape CommonBoundingShape;
-typedef struct BoundingSphere BoundingSphere;
-typedef struct BoundingCuboid BoundingCuboid;
-typedef union BoundingShape BoundingShape;
-
-typedef struct CommonObject {
-	OBJECT_PARAMS
-} CommonObject;
-
-typedef union Object {
-	CommonObject *common;
-	Sphere *sphere;
-	Triangle *triangle;
-	Plane *plane;
-	Mesh *mesh;
-} Object;
-
-typedef struct CommonBoundingShape {
-	BOUNDING_SHAPE_PARAMS
-} CommonBoundingShape;
-
-typedef union BoundingShape {
-	CommonBoundingShape *common;
-	BoundingSphere *sphere;
-	BoundingCuboid *cuboid;
-} BoundingShape;
-
-void init_camera(Camera *camera, Vec3 position, Vec3 vectors[2], float focal_length, int image_resolution[2], Vec2 image_size);
+void init_camera(Camera *camera, Vec3 position, Vec3 vectors[2], float focal_length, unsigned image_resolution[2], Vec2 image_size);
 void save_image(FILE *file, Image *image);
-
 void init_light(Light *light, Vec3 position, Vec3 intensity);
-
-Mesh *init_mesh(OBJECT_INIT_PARAMS, uint32_t num_triangles);
-void mesh_set_triangle(Mesh *mesh, uint32_t index, Vec3 vertices[3]);
-void mesh_generate_bounding_sphere(Mesh *mesh);
-void mesh_generate_bounding_cuboid(Mesh *mesh);
-
-Triangle *init_triangle(OBJECT_INIT_PARAMS, Vec3 vertices[3]);
-
-Sphere *init_sphere(OBJECT_INIT_PARAMS, Vec3 position, float radius);
-
-Plane *init_plane(OBJECT_INIT_PARAMS, Vec3 normal, Vec3 point);
-
 
 #endif

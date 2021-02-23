@@ -1,7 +1,7 @@
-SRC_FILES := main.c vector.c objects.c stl.c algorithm.c scene.c
+SRC_FILES := main.c vector.c objects.c stl.c algorithm.c scene.c global.c
 LINUX_CFLAGS := -lm -std=c11 -Wno-address-of-packed-member -DDISPLAY_TIME
 RELEASE_CFLAGS := -Ofast -DMULTITHREADING -fopenmp
-DEBUG_CFLAGS := -Wall -Wextra -Wdouble-promotion -Wpedantic -Wstrict-prototypes -Wshadow -g -Ofast -DDEBUG -fsanitize=address -fsanitize=undefined
+DEBUG_CFLAGS := -Wall -Wextra -Wdouble-promotion -Wpedantic -Wstrict-prototypes -Wshadow -g -Ofast -DDEBUG -fsanitize=address -fsanitize=undefined -Wno-maybe-uninitialized
 
 SRC_PATH = src/
 

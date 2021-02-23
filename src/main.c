@@ -1,53 +1,49 @@
 #include "main.h"
 
-float get_closest_intersection(int num_objects, Object *objects, Line *ray, Object *closest_object, Vec3 closest_normal)
+float get_closest_intersection(unsigned num_objects, Object *objects, Line *ray, Object *closest_object, Vec3 closest_normal)
 {
 	Vec3 normal;
 	float min_distance = FLT_MAX;
-	int i;
-	for(i = 0; i < num_objects; i++)
-	{
+	unsigned i;
+	for (i = 0; i < num_objects; i++) {
 		float distance;
-		if(objects[i].common->get_intersection(objects[i], ray, &distance, normal)) {
-			if(distance < min_distance) {
+		if (objects[i].common->get_intersection(objects[i], ray, &distance, normal))
+			if (distance < min_distance) {
 				min_distance = distance;
 				*closest_object = objects[i];
 				memcpy(closest_normal, normal, sizeof(Vec3));
 			}
-		}
 	}
 	return min_distance;
 }
 
-bool is_intersection_in_distance(int num_objects, Object *objects, Line *ray, float min_distance, CommonObject *excl_object, Vec3 light_intensity)
+bool is_intersection_in_distance(unsigned num_objects, Object *objects, Line *ray, float min_distance, CommonObject *excl_object, Vec3 light_intensity)
 {
-	int i;
-	for(i = 0; i < num_objects; i++)
-	{
+	unsigned i;
+	for (i = 0; i < num_objects; i++) {
 		CommonObject *object = objects[i].common;
-		if(object != excl_object)
-			if(object->intersects_in_range(objects[i], ray, min_distance))
-			{
-				if(object->transparent) {
+		if (object != excl_object)
+			if (object->intersects_in_range(objects[i], ray, min_distance)) {
+				if (object->transparent)
 					multiply3v(light_intensity, object->kt, light_intensity);
-				} else
+				else
 					return true;
 			}
 	}
 	return false;
 }
 
-void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, Light *lights, Line *ray, Vec3 kr, Vec3 color, int bounce_count, CommonObject *inside_object)
+void cast_ray(Camera *camera, unsigned num_objects, Object *objects, unsigned num_lights, Light *lights, Line *ray, Vec3 kr, Vec3 color, unsigned bounce_count, CommonObject *inside_object)
 {
 	Object closest_object;
 	closest_object.common = NULL;
 	Vec3 normal;
 	float min_distance;
 
-	if(inside_object) {
+	if (inside_object) {
 		Object obj;
 		obj.common = inside_object;
-		if(inside_object->get_intersection(obj, ray, &min_distance, normal)) {
+		if (inside_object->get_intersection(obj, ray, &min_distance, normal)) {
 			closest_object.common = inside_object;
 		} else {
 			min_distance = get_closest_intersection(num_objects, objects, ray, &closest_object, normal);
@@ -55,12 +51,12 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 	} else {
 		min_distance = get_closest_intersection(num_objects, objects, ray, &closest_object, normal);
 	}
-	if(closest_object.common) {
+	if (closest_object.common) {
 		CommonObject *object = closest_object.common;
 
 		normalize3(normal);
 		float b = dot3(normal, ray->vector);
-		if(b > 0.f)
+		if (b > 0.f)
 			multiply3(normal, -1.f, normal);
 
 		//LIGHTING MODEL
@@ -77,9 +73,8 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 		Line light_ray;
 		memcpy(light_ray.position, point, sizeof(Vec3));
 
-		int i;
-		for(i = 0; i < num_lights; i++)
-		{
+		unsigned i;
+		for (i = 0; i < num_lights; i++) {
 			Light *light = &lights[i];
 
 			//Line from point to light
@@ -90,7 +85,7 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 			float a = dot3(light_ray.vector, normal);
 
 			Vec3 incoming_light_intensity = {1., 1., 1.};
-			if(object != inside_object && ! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance, (inside_object == object) ? inside_object : NULL, incoming_light_intensity)) {
+			if (object != inside_object && ! is_intersection_in_distance(num_objects, objects, &light_ray, light_distance, (inside_object == object) ? inside_object : NULL, incoming_light_intensity)) {
 				Vec3 intensity;
 				multiply3v(incoming_light_intensity, light->intensity, intensity);
 				Vec3 diffuse;
@@ -99,14 +94,13 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 
 				Vec3 reflected;
 				float specular_mul;
-				switch(reflection_model)
-				{
-					case REFLECTION_PHONG:
+				switch (reflection_model) {
+				case REFLECTION_PHONG:
 					multiply3(normal, 2 * a, reflected);
 					subtract3(reflected, light_ray.vector, reflected);
 					specular_mul = - dot3(reflected, ray->vector);
 					break;
-					case REFLECTION_BLINN:
+				case REFLECTION_BLINN:
 					multiply3(light_ray.vector, -1.f, reflected);
 					add3(reflected, ray->vector, reflected);
 					normalize3(reflected);
@@ -117,7 +111,6 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 				multiply3v(object->ks, intensity, specular);
 				multiply3(specular, fmaxf(0., powf(specular_mul, object->shininess)), specular);
 
-
 				add3_3(obj_color, diffuse, specular, obj_color);
 			}
 		}
@@ -125,10 +118,10 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 		add3(color, obj_color, color);
 
 		//reflection
-		if(inside_object != object && object->reflective && bounce_count < max_bounces) {
+		if (inside_object != object && object->reflective && bounce_count < max_bounces) {
 			Vec3 reflected_kr;
 			multiply3v(kr, object->kr, reflected_kr);
-			if(minimum_light_intensity_sqr < sqr(reflected_kr[X]) + sqr(reflected_kr[Y]) + sqr(reflected_kr[Z])) {
+			if (minimum_light_intensity_sqr < sqr(reflected_kr[X]) + sqr(reflected_kr[Y]) + sqr(reflected_kr[Z])) {
 				Line reflection_ray;
 				memcpy(reflection_ray.position, point, sizeof(Vec3));
 				multiply3(normal, 2 * dot3(ray->vector, normal), reflection_ray.vector);
@@ -138,10 +131,10 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 		}
 
 		//transparency
-		if(object->transparent && bounce_count < max_bounces) {
+		if (object->transparent && bounce_count < max_bounces) {
 			Vec3 refracted_kt;
 			multiply3v(kr, object->kt, refracted_kt);
-			if(minimum_light_intensity_sqr < sqr(refracted_kt[X]) + sqr(refracted_kt[Y]) + sqr(refracted_kt[Z])) {
+			if (minimum_light_intensity_sqr < sqr(refracted_kt[X]) + sqr(refracted_kt[Y]) + sqr(refracted_kt[Z])) {
 				Line refraction_ray;
 				memcpy(refraction_ray.position, point, sizeof(Vec3));
 				float incident_angle = acosf(fabs(b));
@@ -162,23 +155,21 @@ void cast_ray(Camera *camera, int num_objects, Object *objects, int num_lights, 
 	}
 }
 
-void create_image(Camera *camera, int num_objects, Object *objects, int num_lights, Light *lights)
+void create_image(Camera *camera, unsigned num_objects, Object *objects, unsigned num_lights, Light *lights)
 {
 	Vec3 kr = {1.f, 1.f, 1.f};
 	#ifdef MULTITHREADING
 	#pragma omp parallel for
 	#endif
-	for(int row = 0; row < camera->image.resolution[Y]; row++)
-	{
+	for (unsigned row = 0; row < camera->image.resolution[Y]; row++) {
 		Vec3 pixel_position;
 		multiply3(camera->image.vectors[Y], row, pixel_position);
 		add3(pixel_position, camera->image.corner, pixel_position);
 		Line ray;
 		memcpy(ray.position, camera->position, sizeof(Vec3));
-		int pixel_index = camera->image.resolution[X] * row;
-		int col;
-		for(col = 0; col < camera->image.resolution[X]; col++)
-		{
+		unsigned pixel_index = camera->image.resolution[X] * row;
+		unsigned col;
+		for (col = 0; col < camera->image.resolution[X]; col++) {
 			add3(pixel_position, camera->image.vectors[X], pixel_position);
 			Vec3 color = {0., 0., 0.};
 			subtract3(pixel_position, camera->position, ray.vector);
@@ -194,89 +185,75 @@ void create_image(Camera *camera, int num_objects, Object *objects, int num_ligh
 	}
 }
 
-void process_arguments(int argc, char *argv[], FILE **scene_file, FILE **output_file, int resolution[2], int *fov)
+void process_arguments(int argc, char *argv[], FILE **scene_file, FILE **output_file, unsigned resolution[2], int *fov)
 {
-	if(argc <= 7) {
-		if(argc == 2) {
-			if(! strcmp("--help", argv[1]) || ! strcmp("-h", argv[1])) {
+	if (argc <= 7) {
+		if (argc == 2) {
+			if (! strcmp("--help", argv[1]) || ! strcmp("-h", argv[1])) {
 				printf("%s", HELPTEXT);
 				exit(0);
 			}
 		}
-		printf("Use --help to find out which arguments are required to call this program.\n");
-		exit(0);
+		err_assert(false, ERR_ARGC);
 	}
 
 	int i;
-	for(i = 1; i < argc; i += 2)
-	{
-		switch(djb_hash(argv[i]))
-		{
+	for (i = 1; i < argc; i += 2) {
+		switch (djb_hash(argv[i])) {
 			case 5859054://-f
 			case 3325380195://--file
-			*scene_file = fopen(argv[i + 1], "rb");
-			break;
+				*scene_file = fopen(argv[i + 1], "rb");
+				break;
 			case 5859047://-o
 			case 739088698://--output
-			if(strstr(argv[i + 1], ".ppm")) {
+				err_assert(strstr(argv[i + 1], ".ppm"), ERR_ARGV_FILE_EXT);
 				*output_file = fopen(argv[i + 1], "wb");
-			} else {
-				printf("Output file must have the .ppm extension.\n");
-				exit(0);
-			}
-			break;
+				break;
 			case 5859066: //-r
 			case 2395108907://--resolution
-			resolution[0] = atoi(argv[i + 1]);
-			resolution[1] = atoi(argv[i + 2]);
-			i++;
-			break;
+				resolution[0] = abs(atoi(argv[i + 1]));
+				resolution[1] = abs(atoi(argv[i++ + 2]));
+				break;
 			case 5859045://-m
-			#ifdef MULTITHREADING
-			if(djb_hash(argv[i + 1]) == 193414065) {//if "max"
-				NUM_THREADS = omp_get_max_threads();
-			} else {
-				NUM_THREADS = atoi(argv[i + 1]);
-				assert("ERROR: SPECIFIED NUMBER OF THREADS IS GREATER THAN THE AVAILABE NUMBER OF THREADS." && NUM_THREADS <= omp_get_max_threads());
-			}
-			#else
-			printf("Multithreading is disabled. To enable it, recompile the program with the -DMULTITHREADING parameter.\n");
-			exit(0);
-			#endif
-			break;
+				#ifdef MULTITHREADING
+				if (djb_hash(argv[i + 1]) == 193414065) {//if "max"
+					NUM_THREADS = omp_get_max_threads();
+				} else {
+					NUM_THREADS = atoi(argv[i + 1]);
+					err_assert(NUM_THREADS <= omp_get_max_threads(), ERR_ARGV_NUM_THREADS);
+				}
+				#else
+				err_assert(false, ERR_ARGV_MULTITHREADING);
+				#endif /* MULTITHREADING */
+				break;
 			case 5859050://-b
-			max_bounces = atoi(argv[i + 1]);
-			assert("ERROR: MAX NUMBER OF BOUNCES IS NEGATIVE." && max_bounces >= 0);
-			break;
+				max_bounces = abs(atoi(argv[i + 1]));
+				break;
 			case 5859049://-a
-			minimum_light_intensity_sqr = sqr(atof(argv[i + 1]));
-			break;
+				minimum_light_intensity_sqr = sqr(atof(argv[i + 1]));
+				break;
 			case 5859067://-s
-			switch(djb_hash(argv[i + 1]))
-			{
+				switch (djb_hash(argv[i + 1])) {
 				case 187940251://phong
-				reflection_model = REFLECTION_PHONG;
-				break;
+					reflection_model = REFLECTION_PHONG;
+					break;
 				case 175795714://blinn
-				reflection_model = REFLECTION_BLINN;
-				break;
+					reflection_model = REFLECTION_BLINN;
+					break;
 				default:
-				printf("Unrecognized reflection model: %s.\n", argv[i+1]);
-				exit(0);
-			}
-			break;
+					err_assert(false, ERR_ARGV_REFLECTION);
+				}
+				break;
 			case 2085543063: //-fov
-			*fov = atoi(argv[i + 1]);
-			assert("ERROR: FOV IS NOT IN RANGE: 180 > FOV > 0." && *fov < 180 && *fov > 0);
-			break;
+				*fov = atoi(argv[i + 1]);
+				err_assert(*fov < 180 && *fov > 0, ERR_ARGV_FOV);
+				break;
 			default:
-			printf("Unrecognized argument: %s\nUse --help to find out which arguments can be used.\n", argv[i]);
-			exit(0);
+				err_assert(false, ERR_ARGV_UNRECOGNIZED);
 		}
 	}
-	assert("ERROR: UNABLE TO OPEN SCENE FILE." && *scene_file);
-	assert("ERROR: UNABLE TO OPEN/CREATE OUTPUT FILE." && *output_file);
-	assert("ERROR: RESOLUTION IS NEGATIVE." && resolution[X] > 0 && resolution[Y] > 0);
+	err_assert(*scene_file, ERR_ARGV_IO_OPEN_SCENE);
+	err_assert(*output_file, ERR_ARGV_IO_OPEN_OUTPUT);
 }
 
 int main(int argc, char *argv[])
@@ -287,7 +264,7 @@ int main(int argc, char *argv[])
 	#endif
 
 	FILE *scene_file = NULL, *output_file = NULL;
-	int resolution[2] = {0, 0};
+	unsigned resolution[2] = {0, 0};
 	int fov = 90;
 	float focal_length = 1.f; //NOTE: Currently, user cannot change this parameter
 
@@ -304,7 +281,7 @@ int main(int argc, char *argv[])
 	Camera *camera = NULL;
 	Object *objects = NULL;
 	Light *lights = NULL;
-	int num_objects = 0, num_lights = 0;
+	unsigned num_objects = 0, num_lights = 0;
 
 	PRINT_TIME("[%07.3f] INITIALIZING SCENE.\n");
 
@@ -324,11 +301,9 @@ int main(int argc, char *argv[])
 
 	free(camera->image.pixels);
 	free(camera);
-	int i;
-	for(i = 0; i < num_objects; i++)
-	{
+	unsigned i;
+	for (i = 0; i < num_objects; i++)
 		free(objects[i].common);
-	}
 	free(objects);
 	free(lights);
 

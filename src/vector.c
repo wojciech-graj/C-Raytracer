@@ -2,7 +2,7 @@
 
 float sqr(float val)
 {
-    return val * val;
+	return val * val;
 }
 
 float magnitude2(Vec2 vec)
@@ -28,8 +28,8 @@ float dot3(Vec3 vec1, Vec3 vec2)
 void cross(Vec3 vec1, Vec3 vec2, Vec3 result)
 {
 	result[X] = vec1[Y] * vec2[Z] - vec1[Z] * vec2[Y];
-    result[Y] = vec1[Z] * vec2[X] - vec1[X] * vec2[Z];
-    result[Z] = vec1[X] * vec2[Y] - vec1[Y] * vec2[X];
+	result[Y] = vec1[Z] * vec2[X] - vec1[X] * vec2[Z];
+	result[Z] = vec1[X] * vec2[Y] - vec1[Y] * vec2[X];
 }
 
 void multiply2(Vec2 vec, float mul, Vec2 result)

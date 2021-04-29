@@ -9,7 +9,6 @@
 #include "../lib/cJSON.h"
 
 /* TODO:
-	Remove resolution from Context
 	Treat emittant objects as lights
 	Path tracing
 */
@@ -20,9 +19,9 @@
 
 #ifdef DISPLAY_TIME
 #include <time.h>
-#define PRINT_TIME(format)\
+#define PRINT_TIME(msg)\
 	timespec_get(&current_t, TIME_UTC);\
-	printf(format, (double) ((current_t.tv_sec - start_t.tv_sec) + (current_t.tv_nsec - start_t.tv_nsec) * 1e-9f));
+	printf("[%07.3f] %s\n", (double)((current_t.tv_sec - start_t.tv_sec) + (current_t.tv_nsec - start_t.tv_nsec) * 1e-9f), msg);
 #else
 #define PRINT_TIME(format)
 #endif
@@ -32,7 +31,6 @@
 uint32_t NUM_THREADS = 1;
 #endif
 
-#define DYNAMIC_ARRAY_INCREMENT 3
 #define PI 3.1415927f
 
 /* ERROR */
@@ -1418,6 +1416,7 @@ void scene_load(Context *context)
 	err_assert(fread(buffer, 1, length, context->scene_file) == length, ERR_JSON_IO_READ);
 	buffer[length] = '\0';
 	cJSON *json = cJSON_Parse(buffer);
+	free(buffer);
 	err_assert(json, ERR_JSON_IO_READ);
 	err_assert(cJSON_IsObject(json), ERR_JSON_FIRST_TOKEN);
 
@@ -1752,24 +1751,24 @@ int main(int argc, char *argv[])
 	omp_set_num_threads(NUM_THREADS);
 #endif
 
-	PRINT_TIME("[%07.3f] INITIALIZING SCENE.\n");
+	PRINT_TIME("INITIALIZING SCENE.");
 
 	scene_load(context);
 	fclose(context->scene_file);
 	context->scene_file = NULL;
 
-	PRINT_TIME("[%07.3f] INITIALIZED SCENE. BEGAN RENDERING.\n");
+	PRINT_TIME("INITIALIZED SCENE. BEGAN RENDERING.");
 
 	create_image(context);
 
-	PRINT_TIME("[%07.3f] FINISHED RENDERING.\n");
+	PRINT_TIME("FINISHED RENDERING.");
 
 	save_image(context->output_file, &context->camera->image);
 	fclose(context->output_file);
 
-	PRINT_TIME("[%07.3f] SAVED IMAGE.\n");
+	PRINT_TIME("SAVED IMAGE.");
 
 	context_delete(context);
 
-	PRINT_TIME("[%07.3f] TERMINATED PROGRAM.\n");
+	PRINT_TIME("TERMINATED PROGRAM.");
 }

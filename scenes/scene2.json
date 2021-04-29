@@ -4,120 +4,148 @@
 	{
 		"position": [0.0, -4.0, -1.0],
 		"vector_x": [1.0, 0.0, 0.0],
-		"vector_y": [0.0, 1.0, 0.0]
+		"vector_y": [0.0, 1.0, 0.0],
+		"fov": 90,
+		"focal_length": 1.0
 	},
-	"Plane":
-	{
-		"ks": [0.0, 0.0, 0.0],
-		"kd": [0.5, 0.5, 0.5],
-		"ka": [1.0, 1.0, 1.0],
-		"kr": [0.0, 0.0, 0.0],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 0.0,
-		"refractive_index": 1.0,
-		"epsilon": 0.0005,
-		"position": [0.0, 0.0, 0.0],
-		"normal": [0.0, 1.0, 0.0]
-	},
-	"Sphere":
-	{
-		"ks": [0.0, 0.0, 0.0],
-		"kd": [0.0, 1.0, 0.0],
-		"ka": [0.0, 0.5, 0.0],
-		"kr": [0.0, 0.0, 0.0],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 0.1,
-		"refractive_index": 1.0,
-		"epsilon": 0.0005,
-		"position": [-6.5, -2.0, 10.0],
-		"radius": 2.0
-	},
-	"Sphere":
-	{
-		"ks": [0.0, 0.0, 0.0],
-		"kd": [0.0, 0.0, 1.0],
-		"ka": [0.0, 0.0, 0.5],
-		"kr": [0.0, 0.0, 0.0],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 0.1,
-		"refractive_index": 1.0,
-		"epsilon": 0.0005,
-		"position": [6.5, -1.4, 10.0],
-		"radius": 1.4
-	},
-	"Sphere":
-	{
-		"ks": [0.0, 0.0, 0.0],
-		"kd": [1.0, 0.0, 0.0],
-		"ka": [0.5, 0.0, 0.0],
-		"kr": [0.0, 0.0, 0.0],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 0.1,
-		"refractive_index": 1.0,
-		"epsilon": 0.0005,
-		"position": [4.0, -2.3, 18.0],
-		"radius": 2.3
-	},
-	"Sphere":
-	{
-		"ks": [0.0, 0.0, 0.0],
-		"kd": [0.5, 0.0, 0.5],
-		"ka": [0.25, 0.0, 0.25],
-		"kr": [0.0, 0.0, 0.0],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 0.1,
-		"refractive_index": 1.0,
-		"epsilon": 0.0005,
-		"position": [-2.0, -1.7, 17.0],
-		"radius": 1.7
-	},
-	"Sphere":
-	{
-		"ks": [0.0, 0.0, 0.0],
-		"kd": [0.5, 0.5, 0.0],
-		"ka": [0.25, 0.25, 0.0],
-		"kr": [0.0, 0.0, 0.0],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 0.1,
-		"refractive_index": 1.0,
-		"epsilon": 0.0005,
-		"position": [15.0, -1.1, 19.0],
-		"radius": 1.1
-	},
-	"Sphere":
-	{
-		"ks": [0.0, 0.0, 0.0],
-		"kd": [0.0, 0.5, 0.5],
-		"ka": [0.0, 0.25, 0.25],
-		"kr": [0.0, 0.0, 0.0],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 0.1,
-		"refractive_index": 1.0,
-		"epsilon": 0.0005,
-		"position": [-7.0, -2.2, 17.0],
-		"radius": 2.2
-	},
-	"Mesh":
-	{
-		"ks": [0.9, 0.9, 0.9],
-		"kd": [0.0, 0.0, 0.0],
-		"ka": [0.5, 0.5, 0.5],
-		"kr": [0.9, 0.9, 0.9],
-		"kt": [0.0, 0.0, 0.0],
-		"shininess": 20.0,
-		"refractive_index": 1.0,
-		"epsilon": 0.0001,
-		"filename": "meshes/shapes/torus.stl",
-		"position": [0.0, -6.0, 10.0],
-		"rotation": [0.0, 0.785395, 0.785395],
-		"scale": 0.3
-	},
-	"LightArea":
-	{
-		"position": [-8.0, -15.0, 1.0],
-		"side_1": [-1.0, 0.0, 1.0],
-		"side_2": [0.0, 1.0, 0.0],
-		"point_spacing": 0.05,
-		"intensity": [1.0, 1.0, 1.0]
-	}
+	"Objects":
+	[
+		{
+			"type": "Plane",
+			"parameters":
+			{
+				"ks": [0.0, 0.0, 0.0],
+				"kd": [0.5, 0.5, 0.5],
+				"ka": [1.0, 1.0, 1.0],
+				"kr": [0.0, 0.0, 0.0],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 0.0,
+				"refractive_index": 1.0,
+				"epsilon": 0.0005,
+				"position": [0.0, 0.0, 0.0],
+				"normal": [0.0, 1.0, 0.0]
+			}
+		},
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"ks": [0.0, 0.0, 0.0],
+				"kd": [0.0, 1.0, 0.0],
+				"ka": [0.0, 0.5, 0.0],
+				"kr": [0.0, 0.0, 0.0],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 0.1,
+				"refractive_index": 1.0,
+				"epsilon": 0.0005,
+				"position": [-6.5, -2.0, 10.0],
+				"radius": 2.0
+			}
+		},
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"ks": [0.0, 0.0, 0.0],
+				"kd": [0.0, 0.0, 1.0],
+				"ka": [0.0, 0.0, 0.5],
+				"kr": [0.0, 0.0, 0.0],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 0.1,
+				"refractive_index": 1.0,
+				"epsilon": 0.0005,
+				"position": [6.5, -1.4, 10.0],
+				"radius": 1.4
+			}
+		},
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"ks": [0.0, 0.0, 0.0],
+				"kd": [1.0, 0.0, 0.0],
+				"ka": [0.5, 0.0, 0.0],
+				"kr": [0.0, 0.0, 0.0],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 0.1,
+				"refractive_index": 1.0,
+				"epsilon": 0.0005,
+				"position": [4.0, -2.3, 18.0],
+				"radius": 2.3
+			}
+		},
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"ks": [0.0, 0.0, 0.0],
+				"kd": [0.5, 0.0, 0.5],
+				"ka": [0.25, 0.0, 0.25],
+				"kr": [0.0, 0.0, 0.0],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 0.1,
+				"refractive_index": 1.0,
+				"epsilon": 0.0005,
+				"position": [-2.0, -1.7, 17.0],
+				"radius": 1.7
+			}
+		},
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"ks": [0.0, 0.0, 0.0],
+				"kd": [0.5, 0.5, 0.0],
+				"ka": [0.25, 0.25, 0.0],
+				"kr": [0.0, 0.0, 0.0],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 0.1,
+				"refractive_index": 1.0,
+				"epsilon": 0.0005,
+				"position": [15.0, -1.1, 19.0],
+				"radius": 1.1
+			}
+		},
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"ks": [0.0, 0.0, 0.0],
+				"kd": [0.0, 0.5, 0.5],
+				"ka": [0.0, 0.25, 0.25],
+				"kr": [0.0, 0.0, 0.0],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 0.1,
+				"refractive_index": 1.0,
+				"epsilon": 0.0005,
+				"position": [-7.0, -2.2, 17.0],
+				"radius": 2.2
+			}
+		},
+		{
+			"type": "Mesh",
+			"parameters":
+			{
+				"ks": [0.9, 0.9, 0.9],
+				"kd": [0.0, 0.0, 0.0],
+				"ka": [0.5, 0.5, 0.5],
+				"kr": [0.9, 0.9, 0.9],
+				"kt": [0.0, 0.0, 0.0],
+				"shininess": 20.0,
+				"refractive_index": 1.0,
+				"epsilon": 0.0001,
+				"filename": "meshes/shapes/torus.stl",
+				"position": [0.0, -6.0, 10.0],
+				"rotation": [0.0, 0.785395, 0.785395],
+				"scale": 0.3
+			}
+		}
+	],
+	"Lights":
+	[
+		{
+			"position": [-8.0, -15.0, 1.0],
+			"intensity": [1.0, 1.0, 1.0]
+		}
+	]
 }

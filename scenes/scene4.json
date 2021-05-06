@@ -8,19 +8,46 @@
 		"fov": 90,
 		"focal_length": 1.0
 	},
+	"Materials":
+	[
+		{
+			"id": 0,
+			"ks": [0.0, 0.0, 0.0],
+			"kd": [0.5, 0.5, 0.5],
+			"ka": [1.0, 1.0, 1.0],
+			"kr": [0.0, 0.0, 0.0],
+			"kt": [0.0, 0.0, 0.0],
+			"shininess": 0.0,
+			"refractive_index": 1.0
+		},
+		{
+			"id": 1,
+			"ks": [0.9, 0.9, 0.9],
+			"kd": [1.0, 0.9, 0.75],
+			"ka": [0.5, 0.5, 0.5],
+			"kr": [0.0, 0.0, 0.0],
+			"kt": [0.0, 0.0, 0.0],
+			"shininess": 20.0,
+			"refractive_index": 1.0
+		},
+		{
+			"id": 2,
+			"ks": [0.9, 0.9, 0.9],
+			"kd": [0.5, 0.5, 0.5],
+			"ka": [0.5, 0.5, 0.5],
+			"kr": [0.9, 0.9, 0.9],
+			"kt": [0.0, 0.0, 0.0],
+			"shininess": 20.0,
+			"refractive_index": 1.0
+		}
+	],
 	"Objects":
 	[
 		{
 			"type": "Plane",
 			"parameters":
 			{
-				"ks": [0.0, 0.0, 0.0],
-				"kd": [0.5, 0.5, 0.5],
-				"ka": [1.0, 1.0, 1.0],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 0.0,
-				"refractive_index": 1.0,
+				"material": 0,
 				"epsilon": 0.0001,
 				"position": [0.0, 0.0, 0.0],
 				"normal": [0.0, 1.0, 0.0]
@@ -30,13 +57,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [-6.0, -3.0, 10.0],
@@ -48,13 +69,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [0.5, 0.5, 0.5],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.9, 0.9, 0.9],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Tetrahedron.stl",
 				"position": [-4.3, -4.0, 10.6],
@@ -66,13 +81,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [-1.5, -3.0, 10.0],
@@ -84,13 +93,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [0.5, 0.5, 0.5],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.9, 0.9, 0.9],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Hexahedron.stl",
 				"position": [-0.0, -4.1, 11.2],
@@ -102,13 +105,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [3.0, -3.0, 10.0],
@@ -120,13 +117,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [0.5, 0.5, 0.5],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.9, 0.9, 0.9],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Octahedron.stl",
 				"position": [4.3, -4.4, 11.2],
@@ -138,13 +129,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [3.0, -3.0, 14.5],
@@ -156,13 +141,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [3.0, -4.5, 14.5],
@@ -174,13 +153,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [0.5, 0.5, 0.5],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.9, 0.9, 0.9],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Icosahedron.stl",
 				"position": [4.2, -5.7, 15.8],
@@ -192,13 +165,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [-1.5, -3.0, 14.5],
@@ -210,13 +177,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [-1.5, -4.5, 14.5],
@@ -228,13 +189,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [0.5, 0.5, 0.5],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.9, 0.9, 0.9],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 2,
 				"epsilon": 0.00001,
 				"filename": "meshes/utah_teapot.stl",
 				"position": [-0.0, -5.3, 14.0],
@@ -246,13 +201,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [-6.0, -3.0, 14.5],
@@ -264,13 +213,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [1.0, 0.9, 0.75],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.0, 0.0, 0.0],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 1,
 				"epsilon": 0.00003,
 				"filename": "meshes/shapes/cube.stl",
 				"position": [-6.0, -4.5, 14.5],
@@ -282,13 +225,7 @@
 			"type": "Mesh",
 			"parameters":
 			{
-				"ks": [0.9, 0.9, 0.9],
-				"kd": [0.5, 0.5, 0.5],
-				"ka": [0.5, 0.5, 0.5],
-				"kr": [0.9, 0.9, 0.9],
-				"kt": [0.0, 0.0, 0.0],
-				"shininess": 20.0,
-				"refractive_index": 1.0,
+				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Dodecahedron.stl",
 				"position": [-4.3, -5.7, 15.6],
@@ -303,5 +240,5 @@
 			"position": [0.2, -10.0, 8.6],
 			"intensity": [1.0, 1.0, 1.0]
 		}
-	]	
+	]
 }

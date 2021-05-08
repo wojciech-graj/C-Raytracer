@@ -1,3 +1,28 @@
+/*
+* Author: Wojciech Graj
+* License: MIT
+* Description: A simple raytracer in C
+* Libraries used:
+* 	cJSON (https://github.com/DaveGamble/cJSON)
+* Setting macros:
+*	PRINT_TIME - prints status messages with timestamps
+* 	MULTITHREADING - enables multithreading
+* 	UNBOUND_OBJECTS - allows for unbound objects such as planes
+*
+* Certain sections of code adapted from:
+* 	https://developer.nvidia.com/blog/thinking-parallel-part-iii-tree-construction-gpu/
+* 	http://people.csail.mit.edu/amy/papers/box-jgt.pdf
+*/
+
+/*
+* TODO:
+*	Treat emittant objects as lights
+*	Path tracing
+*	Improve refraction
+*	Optimize speed by considering LOD
+*	BVH with 4, 16, etc. nodes
+*/
+
 #include <float.h>
 #include <math.h>
 #include <stdbool.h>
@@ -7,11 +32,6 @@
 #include <string.h>
 
 #include "../lib/cJSON.h"
-
-/* TODO:
-	Treat emittant objects as lights
-	Path tracing
-*/
 
 /*******************************************************************************
 *	MACRO
@@ -31,6 +51,8 @@
 uint32_t NUM_THREADS = 1;
 #endif
 
+#define clz __builtin_clz
+
 #define PI 3.1415927f
 #define MATERIAL_THRESHOLD 1e-6f
 
@@ -44,10 +66,9 @@ uint32_t NUM_THREADS = 1;
 /* Object */
 #define NUM_OBJECT_MEMBERS 2
 #define OBJECT_MEMBERS\
-	ObjectFunctions *functions;\
+	ObjectData const *object_data;\
 	float epsilon;\
-	Material *material;\
-	BoundingCuboid *bounding_cuboid
+	Material *material
 #define OBJECT_INIT_PARAMS\
 	const float epsilon,\
 	Material *material
@@ -59,14 +80,9 @@ uint32_t NUM_THREADS = 1;
 	float epsilon
 #define OBJECT_NEW(var_type, name, enum_type)\
 	var_type *name = malloc(sizeof(var_type));\
-	name->functions = &OBJECT_FUNCTIONS[enum_type];\
+	name->object_data = &OBJECT_DATA[enum_type];\
 	name->epsilon = epsilon;\
 	name->material = material
-#define OBJECT_FUNCTIONS_INIT(name) {\
-	.get_intersection = &name##_get_intersection,\
-	.intersects_in_range = &name##_intersects_in_range,\
-	.delete = &name##_delete,\
-	}
 #define SCENE_OBJECT_LOAD_VARS\
 	json,\
 	context,\
@@ -105,18 +121,34 @@ typedef struct Material Material;
 /* Object */
 typedef union Object Object;
 typedef struct CommonObject CommonObject;
+#ifdef UNBOUND_OBJECTS
 typedef struct Plane Plane;
+#endif
 typedef struct Sphere Sphere;
 typedef struct Triangle Triangle;
-typedef struct ObjectFunctions ObjectFunctions;
+typedef struct ObjectData ObjectData;
+
+/* BVH */
+typedef struct BVH BVH;
+typedef union BVHChild BVHChild;
+typedef struct BVHLeaf BVHLeaf;
 
 /*******************************************************************************
 *	GLOBAL
 *******************************************************************************/
 
-enum object_type{OBJECT_PLANE, OBJECT_SPHERE, OBJECT_TRIANGLE};
+enum object_type {
+#ifdef UNBOUND_OBJECTS
+	OBJECT_PLANE,
+#endif
+	OBJECT_SPHERE,
+	OBJECT_TRIANGLE
+};
 enum directions{X, Y, Z};
-typedef enum {REFLECTION_PHONG, REFLECTION_BLINN} ReflectionModel;
+typedef enum {
+	REFLECTION_PHONG,
+	REFLECTION_BLINN
+} ReflectionModel;
 
 /* ERROR */
 typedef enum {
@@ -224,14 +256,17 @@ typedef struct Context {
 
 	Object *objects;
 	size_t num_objects;
-	size_t objects_size;
-	Object *objects_without_bounding; //Since planes do not have a bounding cuboid and cannot be included in the AABB Tree, they must be looked at separately
-	size_t num_objects_without_bounding;
+	size_t objects_size; //Stores capacity of objects. After objects are loaded, should be equal to num_objects
+#ifdef UNBOUND_OBJECTS
+	Object *unbound_objects; //Since planes do not have a bounding cuboid and cannot be included in the BVH, they must be looked at separately
+	size_t num_unbound_objects;
+#endif
 	Light *lights;
 	size_t num_lights;
 	Material *materials;
 	size_t num_materials;
 	Camera *camera;
+	BVH *bvh;
 
 	Vec3 global_ambient_light_intensity;
 	uint32_t max_bounces;
@@ -246,9 +281,9 @@ typedef struct Line {
 } Line;
 
 typedef struct  STLTriangle {
-	float normal[3];//normal is unreliable so it is not used.
+	float normal[3]; //normal is unreliable so it is not used.
 	float vertices[3][3];
-	uint16_t attribute_bytes;//attribute bytes is unreliable so it is not used.
+	uint16_t attribute_bytes; //attribute bytes is unreliable so it is not used.
 } __attribute__ ((packed)) STLTriangle;
 
 /* Camera */
@@ -300,7 +335,9 @@ typedef union Object {
 	CommonObject *common;
 	Sphere *sphere;
 	Triangle *triangle;
+#ifdef UNBOUND_OBJECTS
 	Plane *plane;
+#endif
 } Object;
 
 typedef struct CommonObject {
@@ -320,20 +357,41 @@ typedef struct Triangle {//triangle ABC
 	Vec3 normal;
 } Triangle;
 
+#ifdef UNBOUND_OBJECTS
 typedef struct Plane {//normal = {a,b,c}, ax + by + cz = d
 	OBJECT_MEMBERS;
 	Vec3 normal;
 	float d;
 } Plane;
+#endif
 
-typedef struct ObjectFunctions {
+typedef struct ObjectData {
+	char *name;
+#ifdef UNBOUND_OBJECTS
+	bool is_bounded;
+#endif
 	bool (*get_intersection)(const Object, const Line*, float*, Vec3);
 	bool (*intersects_in_range)(const Object, const Line*, float);
 	void (*delete)(Object);
-} ObjectFunctions;
+	BoundingCuboid *(*generate_bounding_cuboid)(const Object);
+} ObjectData;
 
-/* TODO:
-typedef struct AABBTree {} */
+/* BVH */
+typedef union BVHChild {
+	BVH *bvh;
+	Object object;
+} BVHChild;
+
+typedef struct BVH {
+	size_t num_children; //leaves have only 1 child
+	BoundingCuboid *bounding_cuboid;
+	BVHChild children[];
+} BVH;
+
+typedef struct BVHLeaf { //Only used when constructing BVH tree
+	uint32_t morton_code;
+	BVH *bvh;
+} BVHLeaf;
 
 /*******************************************************************************
 *	FUNCTION PROTOTYPE
@@ -349,8 +407,7 @@ void cross(const Vec3 vec1, const Vec3 vec2, Vec3 result);
 void mul2(const Vec2 vec, const float mul, Vec2 result);
 void mul3(const Vec3 vec, const float mul, Vec3 result);
 void mul3v(const Vec3 vec1, const Vec3 vec2, Vec3 result);
-void div2(const Vec2 vec, const float div, Vec2 result);
-void div3(const Vec3 vec, const float div, Vec3 result);
+void inv3(Vec3 vec);
 void add2(const Vec2 vec1, const Vec2 vec2, Vec2 result);
 void add2s(const Vec2 vec1, const float summand, Vec2 result);
 void add3(const Vec3 vec1, const Vec3 vec2, Vec3 result);
@@ -362,6 +419,8 @@ void sub3(const Vec3 vec1, const Vec3 vec2, Vec3 result);
 void sub3s(const Vec3 vec1, const float subtrahend, Vec3 result);
 void norm2(Vec2 vec);
 void norm3(Vec3 vec);
+float max3(const Vec3 vec);
+float min3(const Vec3 vec);
 bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 bool line_intersects_sphere(const Vec3 sphere_position, const float sphere_radius, const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 uint32_t djb_hash(const char* cp);
@@ -388,6 +447,10 @@ Material *get_material(const Context *context, const int32_t id);
 /* Object */
 void object_add(const Object object, Context *context);
 void object_params_load(OBJECT_LOAD_PARAMS);
+#ifdef UNBOUND_OBJECTS
+void unbound_objects_get_closest_intersection(const Context *context, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance);
+bool unbound_objects_is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity);
+#endif
 
 /* Sphere */
 Sphere *sphere_new(OBJECT_INIT_PARAMS, const Vec3 position, const float radius);
@@ -395,6 +458,7 @@ void sphere_delete(Object object);
 Sphere *sphere_load(const cJSON *json, Context *context);
 bool sphere_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal);
 bool sphere_intersects_in_range(const Object object, const Line *ray, const float min_distance);
+BoundingCuboid *sphere_generate_bounding_cuboid(const Object object);
 
 /* Triangle */
 Triangle *triangle_new(OBJECT_INIT_PARAMS, Vec3 vertices[3]);
@@ -402,13 +466,16 @@ void triangle_delete(Object object);
 Triangle *triangle_load(const cJSON *json, Context *context);
 bool triangle_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal);
 bool triangle_intersects_in_range(const Object object, const Line *ray, float min_distance);
+BoundingCuboid *triangle_generate_bounding_cuboid(const Object object);
 
 /* Plane */
+#ifdef UNBOUND_OBJECTS
 Plane *plane_new(OBJECT_INIT_PARAMS, const Vec3 normal, const Vec3 point);
 void plane_delete(Object object);
 Plane *plane_load(const cJSON *json, Context *context);
 bool plane_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal);
 bool plane_intersects_in_range(const Object object, const Line *ray, float min_distance);
+#endif
 
 /* Mesh */
 void mesh_load(const cJSON *json, Context *context);
@@ -418,7 +485,19 @@ void stl_load_objects(OBJECT_INIT_PARAMS, Context *context, FILE *file, const Ve
 /* BoundingCuboid */
 BoundingCuboid *bounding_cuboid_new(const float epsilon, Vec3 corners[2]);
 void bounding_cuboid_delete(BoundingCuboid *bounding_cuboid);
-bool bounding_cuboid_intersects(const BoundingCuboid *bounding_cuboid, const Line *ray);
+bool bounding_cuboid_intersects(const BoundingCuboid *cuboid, const Line *ray, float *tmax, float *tmin);
+
+/* BVH */
+BVH *bvh_new(const size_t num_children, BoundingCuboid *bounding_cuboid);
+void bvh_delete(BVH *bvh);
+int bvh_morton_code_compare(const void *p1, const void *p2);
+BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const BVHLeaf *leaf_array, const size_t first, const size_t last);
+BoundingCuboid *bvh_generate_bounding_cuboid_node(const BVH *bvh_left, const BVH *bvh_right);
+BVH *bvh_generate_node(const BVHLeaf *leaf_array, const size_t first, const size_t last);
+void bvh_generate(Context *context);
+void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance);
+bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity);
+void bvh_print(const BVH *bvh, const uint32_t depth);
 
 /* SCENE */
 void cJSON_parse_float_array(const cJSON *json, float *array);
@@ -426,18 +505,44 @@ void scene_load(Context *context);
 
 /* MISC */
 void err(const ErrorCode error_code);
-float get_closest_intersection(const Context *context, const Line *ray, Object *closest_object, Vec3 closest_normal);
-bool is_intersection_in_distance(const Context *context, const Line *ray, const float min_distance, const CommonObject *excl_object, Vec3 light_intensity);
+void get_closest_intersection(const Context *context, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance);
+bool is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity);
 void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t bounce_count, CommonObject *inside_object);
 void create_image(const Context *context);
 void process_arguments(int argc, char *argv[], Context *context);
 int main(int argc, char *argv[]);
 
-/* ObjectFunctions */
-ObjectFunctions OBJECT_FUNCTIONS[] = {
-	[OBJECT_PLANE] = OBJECT_FUNCTIONS_INIT(plane),
-	[OBJECT_SPHERE] = OBJECT_FUNCTIONS_INIT(sphere),
-	[OBJECT_TRIANGLE] = OBJECT_FUNCTIONS_INIT(triangle),
+/* ObjectData */
+const ObjectData OBJECT_DATA[] = {
+#ifdef UNBOUND_OBJECTS
+	[OBJECT_PLANE] = {
+		.name = "Plane",
+		.is_bounded = false,
+		.get_intersection = &plane_get_intersection,
+		.intersects_in_range = &plane_intersects_in_range,
+		.delete = &plane_delete,
+	},
+#endif
+	[OBJECT_SPHERE] = {
+		.name = "Sphere",
+#ifdef UNBOUND_OBJECTS
+		.is_bounded = true,
+#endif
+		.get_intersection = &sphere_get_intersection,
+		.intersects_in_range = &sphere_intersects_in_range,
+		.delete = &sphere_delete,
+		.generate_bounding_cuboid = &sphere_generate_bounding_cuboid,
+	},
+	[OBJECT_TRIANGLE] = {
+		.name = "Triangle",
+#ifdef UNBOUND_OBJECTS
+		.is_bounded = true,
+#endif
+		.get_intersection = &triangle_get_intersection,
+		.intersects_in_range = &triangle_intersects_in_range,
+		.delete = &triangle_delete,
+		.generate_bounding_cuboid = &triangle_generate_bounding_cuboid,
+	},
 };
 
 /*******************************************************************************
@@ -496,17 +601,11 @@ void mul3v(const Vec3 vec1, const Vec3 vec2, Vec3 result)
 	result[Z] = vec1[Z] * vec2[Z];
 }
 
-void div2(const Vec2 vec, const float div, Vec2 result)
+void inv3(Vec3 vec)
 {
-	result[X] = vec[X] / div;
-	result[Y] = vec[Y] / div;
-}
-
-void div3(const Vec3 vec, const float div, Vec3 result)
-{
-	result[X] = vec[X] / div;
-	result[Y] = vec[Y] / div;
-	result[Z] = vec[Z] / div;
+	vec[X] = 1.f / vec[X];
+	vec[Y] = 1.f / vec[Y];
+	vec[Z] = 1.f / vec[Z];
 }
 
 void add2(const Vec2 vec1, const Vec2 vec2, Vec2 result)
@@ -570,12 +669,37 @@ void sub3s(const Vec3 vec1, const float subtrahend, Vec3 result)
 
 void norm2(Vec2 vec)
 {
-	div2(vec, mag2(vec), vec);
+	mul2(vec, 1.f / mag2(vec), vec);
 }
 
 void norm3(Vec3 vec)
 {
-	div3(vec, mag3(vec), vec);
+	mul3(vec, 1.f / mag3(vec), vec);
+}
+
+float min3(const Vec3 vec)
+{
+    float min = vec[0];
+    if (min > vec[1])
+    	min = vec[1];
+    if (min > vec[2])
+    	min = vec[2];
+    return min;
+}
+
+float max3(const Vec3 vec)
+{
+    float max = vec[0];
+    if (max < vec[1])
+    	max = vec[1];
+    if (max < vec[2])
+    	max = vec[2];
+    return max;
+}
+
+float fminf(const float num1, const float num2)
+{
+	return num1 < num2 ? num1 : num2;
 }
 
 //Möller–Trumbore intersection algorithm
@@ -625,6 +749,24 @@ uint32_t djb_hash(const char* cp)
 	return hash;
 }
 
+//Expands a number to only use 1 in every 3 bits
+uint32_t expand_bits(uint32_t num)
+{
+    num = (num * 0x00010001u) & 0xFF0000FFu;
+    num = (num * 0x00000101u) & 0x0F00F00Fu;
+    num = (num * 0x00000011u) & 0xC30C30C3u;
+    num = (num * 0x00000005u) & 0x49249249u;
+    return num;
+}
+
+//Calcualtes 30-bit morton code for a point in cube [0,1]. Does not perform bounds checking
+uint32_t morton_code(const Vec3 vec)
+{
+	return expand_bits((uint32_t)(1023.f * vec[X])) * 4
+		+ expand_bits((uint32_t)(1023.f * vec[Y])) * 2
+		+ expand_bits((uint32_t)(1023.f * vec[Z]));
+}
+
 /*******************************************************************************
 *	Context
 *******************************************************************************/
@@ -645,10 +787,13 @@ void context_delete(Context *context)
 {
 	size_t i;
 	for (i = 0; i < context->num_objects; i++)
-		context->objects[i].common->functions->delete(context->objects[i]);
+		context->objects[i].common->object_data->delete(context->objects[i]);
 	camera_delete(context->camera);
+	bvh_delete(context->bvh);
 	free(context->objects);
-	free(context->objects_without_bounding);
+#ifdef UNBOUND_OBJECTS
+	free(context->unbound_objects);
+#endif
 	free(context->lights);
 	free(context->materials);
 	free(context);
@@ -681,8 +826,8 @@ Camera *camera_new(const Vec3 position, Vec3 vectors[2], const float fov, const 
 	add3(focal_vector, camera->position, plane_center);
 	mul3(camera->vectors[0], camera->image.size[X] / camera->image.resolution[X], camera->image.vectors[0]);
 	mul3(camera->vectors[1], camera->image.size[Y] / camera->image.resolution[Y], camera->image.vectors[1]);
-	mul3(camera->image.vectors[X], .5 - camera->image.resolution[X] / 2., corner_offset_vectors[X]);
-	mul3(camera->image.vectors[Y], .5 - camera->image.resolution[Y] / 2., corner_offset_vectors[Y]);
+	mul3(camera->image.vectors[X], .5f - camera->image.resolution[X] / 2.f, corner_offset_vectors[X]);
+	mul3(camera->image.vectors[Y], .5f - camera->image.resolution[Y] / 2.f, corner_offset_vectors[Y]);
 	add3_3(plane_center, corner_offset_vectors[X], corner_offset_vectors[Y], camera->image.corner);
 
 	return camera;
@@ -749,7 +894,6 @@ void light_load(const cJSON *json, Light *light)
 
 	cJSON *json_position = cJSON_GetObjectItemCaseSensitive(json, "position"),
 		*json_intensity = cJSON_GetObjectItemCaseSensitive(json, "intensity");
-
 	err_assert(cJSON_IsArray(json_position)
 		&& cJSON_IsArray(json_intensity), ERR_JSON_VALUE_NOT_ARRAY);
 	err_assert(cJSON_GetArraySize(json_position) == 3
@@ -761,6 +905,225 @@ void light_load(const cJSON *json, Light *light)
 	cJSON_parse_float_array(json_intensity, intensity);
 
 	light_init(light, position, intensity);
+}
+
+/*******************************************************************************
+*	BVH
+*******************************************************************************/
+
+BVH *bvh_new(const size_t num_children, BoundingCuboid *bounding_cuboid)
+{
+	BVH *bvh = malloc(sizeof(BVH) + num_children * sizeof(BVHChild));
+	bvh->num_children = num_children;
+	bvh->bounding_cuboid = bounding_cuboid;
+	return bvh;
+}
+
+void bvh_delete(BVH *bvh)
+{
+	bounding_cuboid_delete(bvh->bounding_cuboid);
+	if (bvh->num_children > 1) {
+		size_t i;
+		for (i = 0; i < bvh->num_children; i++)
+			bvh_delete(bvh->children[i].bvh);
+	}
+	free(bvh);
+}
+
+int bvh_morton_code_compare(const void *p1, const void *p2)
+{
+	return (int)((BVHLeaf*)p1)->morton_code - (int)((BVHLeaf*)p2)->morton_code;
+}
+
+BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const BVHLeaf *leaf_array, const size_t first, const size_t last)
+{
+	Vec3 corners[2] = {{FLT_MAX}, {FLT_MIN}};
+	float epsilon = 0.f;
+	size_t i, j;
+	for (i = first; i <= last; i++) {
+		BVH *bvh = leaf_array[i].bvh;
+		for (j = 0; j < 3; j++) {
+			if (bvh->bounding_cuboid->corners[0][j] < corners[0][j])
+				corners[0][j] = bvh->bounding_cuboid->corners[0][j];
+			if (bvh->bounding_cuboid->corners[1][j] > corners[1][j])
+				corners[1][j] = bvh->bounding_cuboid->corners[1][j];
+			if (epsilon < bvh->children[0].object.common->epsilon)
+				epsilon = bvh->children[0].object.common->epsilon;
+		}
+	}
+	return bounding_cuboid_new(epsilon, corners);
+}
+
+BoundingCuboid *bvh_generate_bounding_cuboid_node(const BVH *bvh_left, const BVH *bvh_right)
+{
+	BoundingCuboid *left = bvh_left->bounding_cuboid, *right = bvh_right->bounding_cuboid;
+	float epsilon = fmaxf(left->epsilon, right->epsilon);
+	Vec3 corners[2] = {
+		{
+			fminf(left->corners[0][X], right->corners[0][X]),
+			fminf(left->corners[0][Y], right->corners[0][Y]),
+			fminf(left->corners[0][Z], right->corners[0][Z]),
+		},
+		{
+			fmaxf(left->corners[1][X], right->corners[1][X]),
+			fmaxf(left->corners[1][Y], right->corners[1][Y]),
+			fmaxf(left->corners[1][Z], right->corners[1][Z]),
+		},
+	};
+	return bounding_cuboid_new(epsilon, corners);
+}
+
+BVH *bvh_generate_node(const BVHLeaf *leaf_array, const size_t first, const size_t last)
+{
+	if (first == last)
+		return leaf_array[first].bvh;
+
+	uint32_t first_code = leaf_array[first].morton_code;
+	uint32_t last_code = leaf_array[last].morton_code;
+
+	if (first_code == last_code) {
+		size_t num_children = last - first + 1, i;
+		BVH *bvh = bvh_new(num_children, bvh_generate_bounding_cuboid_leaf(leaf_array, first, last));
+		for (i = 0; i < num_children; i++)
+			bvh->children[i].bvh = leaf_array[first + i].bvh;
+		return bvh;
+	}
+
+	uint32_t common_prefix = clz(first_code ^ last_code);
+	size_t split = first;
+	size_t step = last - first;
+
+	do {
+		step = (step + 1) >> 1; // exponential decrease
+		size_t new_split = split + step; // proposed new position
+
+		if (new_split < last) {
+			uint32_t split_code = leaf_array[new_split].morton_code;
+			if (first_code ^ split_code) {
+				uint32_t split_prefix = clz(first_code ^ split_code);
+				if (split_prefix > common_prefix)
+					split = new_split; // accept proposal
+			}
+		}
+	} while (step > 1);
+
+	BVH *bvh_left = bvh_generate_node(leaf_array, first, split);
+	BVH *bvh_right = bvh_generate_node(leaf_array, split + 1, last);
+	BVH *bvh = bvh_new(2, bvh_generate_bounding_cuboid_node(bvh_left, bvh_right));
+	bvh->children[0].bvh = bvh_left;
+	bvh->children[1].bvh = bvh_right;
+	return bvh;
+}
+
+void bvh_generate(Context *context)
+{
+#ifdef UNBOUND_OBJECTS
+	size_t num_leaves = context->num_objects - context->num_unbound_objects;
+#else
+	size_t num_leaves = context->num_objects;
+#endif
+	BVHLeaf *leaf_array = malloc(sizeof(BVHLeaf) * num_leaves);
+
+	size_t i, j = 0;
+	for (i = 0; i < context->num_objects; i++) {
+		Object object = context->objects[i];
+#ifdef UNBOUND_OBJECTS
+		if (object.common->object_data->is_bounded) {
+#endif
+			BVH *bvh = bvh_new(1, object.common->object_data->generate_bounding_cuboid(object));
+			bvh->children[0].object = object;
+			leaf_array[j++].bvh = bvh;
+#ifdef UNBOUND_OBJECTS
+		}
+#endif
+	}
+
+	BoundingCuboid *bounding_cuboid_scene = bvh_generate_bounding_cuboid_leaf(leaf_array, 0, num_leaves - 1);
+	Vec3 dimension_multiplier;
+	sub3(bounding_cuboid_scene->corners[1], bounding_cuboid_scene->corners[0], dimension_multiplier);
+	inv3(dimension_multiplier);
+
+	for (i = 0; i < num_leaves; i++) {
+		BoundingCuboid *bounding_cuboid = leaf_array[i].bvh->bounding_cuboid;
+		Vec3 norm_position;
+		add3(bounding_cuboid->corners[0], bounding_cuboid->corners[1], norm_position);
+		mul3(norm_position, .5f, norm_position);
+		sub3(norm_position, bounding_cuboid_scene->corners[0], norm_position);
+		mul3v(norm_position, dimension_multiplier, norm_position);
+		leaf_array[i].morton_code = morton_code(norm_position);
+	}
+
+	bounding_cuboid_delete(bounding_cuboid_scene);
+
+	qsort(leaf_array, num_leaves, sizeof(BVHLeaf), &bvh_morton_code_compare);
+
+	context->bvh = bvh_generate_node(leaf_array, 0, num_leaves - 1);
+
+	free(leaf_array);
+}
+
+void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance)
+{
+	float tmin, tmax;
+
+	if (bvh->num_children == 1) {
+		Vec3 normal;
+		Object object = bvh->children[0].object;
+		if (object.common->object_data->get_intersection(object, ray, &tmin, normal) && tmin < *closest_distance) {
+			*closest_distance = tmin;
+			*closest_object = object;
+			memcpy(closest_normal, normal, sizeof(Vec3));
+		}
+		return;
+	}
+
+	size_t i;
+	for (i = 0; i < bvh->num_children; i++) {
+		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin) && tmin < *closest_distance) {
+			bvh_get_closest_intersection(bvh->children[i].bvh, ray, closest_object, closest_normal, closest_distance);
+		}
+	}
+}
+
+bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity)
+{
+	float tmin, tmax;
+
+	if (bvh->num_children == 1) {
+		Vec3 normal;
+		Object object = bvh->children[0].object;
+		if (object.common->object_data->get_intersection(object, ray, &tmin, normal) && tmin < distance) {
+			if (object.common->material->transparent)
+				mul3v(light_intensity, object.common->material->kt, light_intensity);
+			else
+				return true;
+		}
+		return false;
+	}
+
+	size_t i;
+	for (i = 0; i < bvh->num_children; i++) {
+		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin) && tmin < distance) {
+			if (bvh_is_light_blocked(bvh->children[i].bvh, ray, distance, light_intensity))
+				return true;
+		}
+	}
+	return false;
+}
+
+void bvh_print(const BVH *bvh, const uint32_t depth)
+{
+	uint32_t i;
+	size_t j;
+	for (i = 0; i < depth; i++)
+		printf("\t");
+	if (bvh->num_children == 1) {
+		printf("%s\n", bvh->children[0].object.common->object_data->name);
+	} else {
+		printf("NODE\n");
+		for(j = 0; j < bvh->num_children; j++)
+			bvh_print(bvh->children[j].bvh, depth + 1);
+	}
 }
 
 /*******************************************************************************
@@ -859,6 +1222,39 @@ void object_params_load(OBJECT_LOAD_PARAMS)
 	*material = get_material(context, json_material->valueint);
 }
 
+#ifdef UNBOUND_OBJECTS
+void unbound_objects_get_closest_intersection(const Context *context, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance)
+{
+	float distance;
+	Vec3 normal;
+	size_t i;
+	for (i = 0; i < context->num_unbound_objects; i++) {
+		Object object = context->unbound_objects[i];
+		if (object.common->object_data->get_intersection(object, ray, &distance, normal) && distance < *closest_distance) {
+			*closest_distance = distance;
+			*closest_object = object;
+			memcpy(closest_normal, normal, sizeof(Vec3));
+
+		}
+	}
+}
+
+bool unbound_objects_is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity)
+{
+	size_t i;
+	for (i = 0; i < context->num_unbound_objects; i++) {
+		CommonObject *object = context->unbound_objects[i].common;
+		if (object->object_data->intersects_in_range(context->unbound_objects[i], ray, distance)) {
+			if (object->material->transparent)
+				mul3v(light_intensity, object->material->kt, light_intensity);
+			else
+				return true;
+			}
+	}
+	return false;
+}
+#endif /* UNBOUND_OBJECTS */
+
 /*******************************************************************************
 *	Sphere
 *******************************************************************************/
@@ -869,19 +1265,12 @@ Sphere *sphere_new(OBJECT_INIT_PARAMS, const Vec3 position, const float radius)
 	memcpy(sphere->position, position, sizeof(Vec3));
 	sphere->radius = radius;
 
-	// BoundingCuboid
-	Vec3 corners[2];
-	sub3s(position, radius, corners[0]);
-	add3s(position, radius, corners[1]);
-	sphere->bounding_cuboid = bounding_cuboid_new(sphere->epsilon, corners);
-
 	return sphere;
 }
 
 
 void sphere_delete(Object object)
 {
-	bounding_cuboid_delete(object.common->bounding_cuboid);
 	free(object.common);
 }
 
@@ -911,8 +1300,7 @@ Sphere *sphere_load(const cJSON *json, Context *context)
 bool sphere_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal)
 {
 	Sphere *sphere = object.sphere;
-	if (bounding_cuboid_intersects(sphere->bounding_cuboid, ray)
-		&& line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, distance)) {
+	if (line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, distance)) {
 			Vec3 position;
 			mul3(ray->vector, *distance, position);
 			add3(position, ray->position, position);
@@ -925,13 +1313,20 @@ bool sphere_get_intersection(const Object object, const Line *ray, float *distan
 bool sphere_intersects_in_range(const Object object, const Line *ray, const float min_distance)
 {
 	Sphere *sphere = object.sphere;
-	if (bounding_cuboid_intersects(sphere->bounding_cuboid, ray)) {
-		float distance;
-		bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, &distance);
-		if (intersects && distance < min_distance)
-			return true;
-	}
+	float distance;
+	bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, &distance);
+	if (intersects && distance < min_distance)
+		return true;
 	return false;
+}
+
+BoundingCuboid *sphere_generate_bounding_cuboid(const Object object)
+{
+	Sphere *sphere = object.sphere;
+	Vec3 corners[2];
+	sub3s(sphere->position, sphere->radius, corners[0]);
+	add3s(sphere->position, sphere->radius, corners[1]);
+	return bounding_cuboid_new(sphere->epsilon, corners);
 }
 
 /*******************************************************************************
@@ -946,26 +1341,11 @@ Triangle *triangle_new(OBJECT_INIT_PARAMS, Vec3 vertices[3])
 	sub3(vertices[2], vertices[0], triangle->edges[1]);
 	cross(triangle->edges[0], triangle->edges[1], triangle->normal);
 
-	//BoundingCuboid
-	Vec3 corners[2];
-	memcpy(corners[0], vertices[2], sizeof(Vec3));
-	memcpy(corners[1], vertices[2], sizeof(Vec3));
-	size_t i, j;
-	for (i = 0; i < 2; i++)
-		for (j = 0; j < 3; j++) {
-			if (corners[0][j] > vertices[i][j])
-				corners[0][j] = vertices[i][j];
-			else if (corners[1][j] < vertices[i][j])
-				corners[1][j] = vertices[i][j];
-		}
-	triangle->bounding_cuboid = bounding_cuboid_new(triangle->epsilon, corners);
-
 	return triangle;
 }
 
 void triangle_delete(Object object)
 {
-	bounding_cuboid_delete(object.common->bounding_cuboid);
 	free(object.common);
 }
 
@@ -999,12 +1379,10 @@ Triangle *triangle_load(const cJSON *json, Context *context)
 bool triangle_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal)
 {
 	Triangle *triangle = object.triangle;
-	if (bounding_cuboid_intersects(triangle->bounding_cuboid, ray)) {
-		bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, triangle->epsilon, distance);
-		if (intersects) {
-			memcpy(normal, triangle->normal, sizeof(Vec3));
-			return true;
-		}
+	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, triangle->epsilon, distance);
+	if (intersects) {
+		memcpy(normal, triangle->normal, sizeof(Vec3));
+		return true;
 	}
 	return false;
 }
@@ -1012,24 +1390,39 @@ bool triangle_get_intersection(const Object object, const Line *ray, float *dist
 bool triangle_intersects_in_range(const Object object, const Line *ray, float min_distance)
 {
 	Triangle *triangle = object.triangle;
-	if (bounding_cuboid_intersects(triangle->bounding_cuboid, ray)) {
-		float distance;
-		bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, triangle->epsilon, &distance);
-		return intersects && distance < min_distance;
-	}
+	float distance;
+	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, triangle->epsilon, &distance);
+	return intersects && distance < min_distance;
 	return false;
+}
+
+BoundingCuboid *triangle_generate_bounding_cuboid(const Object object)
+{
+	Triangle *triangle = object.triangle;
+	Vec3 corners[2];
+	memcpy(corners[0], triangle->vertices[2], sizeof(Vec3));
+	memcpy(corners[1], triangle->vertices[2], sizeof(Vec3));
+	size_t i, j;
+	for (i = 0; i < 2; i++)
+		for (j = 0; j < 3; j++) {
+			if (corners[0][j] > triangle->vertices[i][j])
+				corners[0][j] = triangle->vertices[i][j];
+			else if (corners[1][j] < triangle->vertices[i][j])
+				corners[1][j] = triangle->vertices[i][j];
+		}
+	return bounding_cuboid_new(triangle->epsilon, corners);
 }
 
 /*******************************************************************************
 *	Plane
 *******************************************************************************/
 
+#ifdef UNBOUND_OBJECTS
 Plane *plane_new(OBJECT_INIT_PARAMS, const Vec3 normal, const Vec3 point)
 {
 	OBJECT_NEW(Plane, plane, OBJECT_PLANE);
 	memcpy(plane->normal, normal, sizeof(Vec3));
 	plane->d = dot3(normal, point);
-	plane->bounding_cuboid = NULL;
 
 	return plane;
 }
@@ -1085,6 +1478,7 @@ bool plane_intersects_in_range(const Object object, const Line *ray, float min_d
 	float distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
 	return distance > plane->epsilon && distance < min_distance;
 }
+#endif /* UNBOUND_OBJECTS */
 
 /*******************************************************************************
 *	Mesh
@@ -1198,17 +1592,17 @@ void bounding_cuboid_delete(BoundingCuboid *bounding_cuboid)
 	free(bounding_cuboid);
 }
 
-bool bounding_cuboid_intersects(const BoundingCuboid *cuboid, const Line *ray)
+bool bounding_cuboid_intersects(const BoundingCuboid *cuboid, const Line *ray, float *tmax, float *tmin)
 {
-	float tmin, tmax, tymin, tymax;
+	float tymin, tymax;
 
 	float divx = 1 / ray->vector[X];
 	if (divx >= 0) {
-		tmin = (cuboid->corners[0][X] - ray->position[X]) * divx;
-		tmax = (cuboid->corners[1][X] - ray->position[X]) * divx;
+		*tmin = (cuboid->corners[0][X] - ray->position[X]) * divx;
+		*tmax = (cuboid->corners[1][X] - ray->position[X]) * divx;
 	} else {
-		tmin = (cuboid->corners[1][X] - ray->position[X]) * divx;
-		tmax = (cuboid->corners[0][X] - ray->position[X]) * divx;
+		*tmin = (cuboid->corners[1][X] - ray->position[X]) * divx;
+		*tmax = (cuboid->corners[0][X] - ray->position[X]) * divx;
 	}
 	float divy = 1 / ray->vector[Y];
 	if (divy >= 0) {
@@ -1219,12 +1613,12 @@ bool bounding_cuboid_intersects(const BoundingCuboid *cuboid, const Line *ray)
 		tymax = (cuboid->corners[0][Y] - ray->position[Y]) * divy;
 	}
 
-	if ((tmin > tymax) || (tymin > tmax))
+	if ((*tmin > tymax) || (tymin > *tmax))
 		return false;
-	if (tymin > tmin)
-		tmin = tymin;
-	if (tymax < tmax)
-		tmax = tymax;
+	if (tymin > *tmin)
+		*tmin = tymin;
+	if (tymax < *tmax)
+		*tmax = tymax;
 
 	float tzmin, tzmax;
 
@@ -1237,15 +1631,13 @@ bool bounding_cuboid_intersects(const BoundingCuboid *cuboid, const Line *ray)
 		tzmax = (cuboid->corners[0][Z] - ray->position[Z]) * divz;
 	}
 
-	if (tmin > tzmax || tzmin > tmax)
+	if (*tmin > tzmax || tzmin > *tmax)
 		return false;
-	/* The following code snippet can be used for bounds checking
-	if (tzmin > tmin)
-		tmin = tzmin;
-	if (tzmax < tmax)
-		tmax = tzmax;
-	return(tmin < t1 && tmax > t0);*/
-	return true;
+	if (tzmin > *tmin)
+		*tmin = tzmin;
+	if (tzmax < *tmax)
+		*tmax = tzmax;
+	return *tmax > cuboid->epsilon;
 }
 
 /*******************************************************************************
@@ -1306,16 +1698,18 @@ void scene_load(Context *context)
 		cJSON_parse_float_array(json_ambient_light, context->global_ambient_light_intensity);
 
 	cJSON *json_iter;
-	size_t num_objects_without_bounding = 0;
+#ifdef UNBOUND_OBJECTS
+	size_t num_unbound_objects = 0;
 	cJSON_ArrayForEach (json_iter, json_objects) {
 		err_assert(cJSON_IsObject(json_iter), ERR_JSON_VALUE_NOT_OBJECT);
 		cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json_iter, "type");
 		err_assert(cJSON_IsString(json_type), ERR_JSON_VALUE_NOT_STRING);
 		if (djb_hash(json_type->valuestring) == 232719795)
-			num_objects_without_bounding++;
+			num_unbound_objects++;
 	}
-	if (num_objects_without_bounding)
-		context->objects_without_bounding = malloc(sizeof(Object[num_objects_without_bounding]));
+	if (num_unbound_objects)
+		context->unbound_objects = malloc(sizeof(Object[num_unbound_objects]));
+#endif /* UNBOUND_OBJECTS */
 
 	cJSON_ArrayForEach (json_iter, json_materials) {
 		err_assert(cJSON_IsObject(json_iter), ERR_JSON_VALUE_NOT_OBJECT);
@@ -1335,14 +1729,20 @@ void scene_load(Context *context)
 			object.triangle = triangle_load(json_parameters, context);
 			break;
 		case 232719795: /* Plane */
+#ifdef UNBOUND_OBJECTS
 			object.plane = plane_load(json_parameters, context);
-			context->objects_without_bounding[context->num_objects_without_bounding++] = object;
 			break;
+#else
+			continue;
+#endif
 		case 2088783990: /* Mesh */
 			mesh_load(json_parameters, context);
 			continue;
 		}
-
+#ifdef UNBOUND_OBJECTS
+		if (!object.common->object_data->is_bounded)
+			context->unbound_objects[context->num_unbound_objects++] = object;
+#endif
 		object_add(object, context);
 	}
 
@@ -1364,37 +1764,22 @@ void err(const ErrorCode error_code)
 	exit(error_code);
 }
 
-float get_closest_intersection(const Context *context, const Line *ray, Object *closest_object, Vec3 closest_normal)
+void get_closest_intersection(const Context *context, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance)
 {
-	Vec3 normal;
-	float min_distance = FLT_MAX;
-	size_t i;
-	for (i = 0; i < context->num_objects; i++) {
-		float distance;
-		if (context->objects[i].common->functions->get_intersection(context->objects[i], ray, &distance, normal)
-			&& distance < min_distance) {
-			min_distance = distance;
-			*closest_object = context->objects[i];
-			memcpy(closest_normal, normal, sizeof(Vec3));
-		}
-	}
-	return min_distance;
+#ifdef UNBOUND_OBJECTS
+	unbound_objects_get_closest_intersection(context, ray, closest_object, closest_normal, closest_distance);
+#endif
+	bvh_get_closest_intersection(context->bvh, ray, closest_object, closest_normal, closest_distance);
 }
 
-bool is_intersection_in_distance(const Context *context, const Line *ray, const float min_distance, const CommonObject *excl_object, Vec3 light_intensity)
+bool is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity)
 {
-	size_t i;
-	for (i = 0; i < context->num_objects; i++) {
-		CommonObject *object = context->objects[i].common;
-		if (object != excl_object
-			&& object->functions->intersects_in_range(context->objects[i], ray, min_distance)) {
-			if (object->material->transparent)
-				mul3v(light_intensity, object->material->kt, light_intensity);
-			else
-				return true;
-			}
-	}
-	return false;
+#ifdef UNBOUND_OBJECTS
+	return unbound_objects_is_light_blocked(context, ray, distance, light_intensity)
+		|| bvh_is_light_blocked(context->bvh, ray, distance, light_intensity);
+#else
+	return bvh_is_light_blocked(context->bvh, ray, distance, light_intensity);
+#endif
 }
 
 void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t bounce_count, CommonObject *inside_object)
@@ -1403,16 +1788,14 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	closest_object.common = NULL;
 	Vec3 normal;
 	float min_distance;
+	Object obj;
+	obj.common = inside_object;
 
-	if (inside_object) {
-		Object obj;
-		obj.common = inside_object;
-		if (inside_object->functions->get_intersection(obj, ray, &min_distance, normal))
-			closest_object.common = inside_object;
-		else
-			min_distance = get_closest_intersection(context, ray, &closest_object, normal);
+	if (inside_object && inside_object->object_data->get_intersection(obj, ray, &min_distance, normal)) {
+		closest_object.common = inside_object;
 	} else {
-		min_distance = get_closest_intersection(context, ray, &closest_object, normal);
+		min_distance = FLT_MAX;
+		get_closest_intersection(context, ray, &closest_object, normal, &min_distance);
 	}
 	CommonObject *object = closest_object.common;
 	if (! object)
@@ -1453,7 +1836,8 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		float a = dot3(light_ray.vector, normal);
 
 		Vec3 incoming_light_intensity = {1., 1., 1.};
-		if (object != inside_object && ! is_intersection_in_distance(context, &light_ray, light_distance, (inside_object == object) ? inside_object : NULL, incoming_light_intensity)) {
+		if (object != inside_object
+			&& ! is_light_blocked(context, &light_ray, light_distance, incoming_light_intensity)) {
 			Vec3 intensity;
 			mul3v(incoming_light_intensity, light->intensity, intensity);
 			Vec3 diffuse;
@@ -1530,9 +1914,9 @@ void create_image(const Context *context)
 {
 	Vec3 kr = {1.f, 1.f, 1.f};
 	Camera *camera = context->camera;
-	#ifdef MULTITHREADING
-	#pragma omp parallel for
-	#endif
+#ifdef MULTITHREADING
+#pragma omp parallel for
+#endif
 	for (uint32_t row = 0; row < camera->image.resolution[Y]; row++) {
 		Vec3 pixel_position;
 		mul3(camera->image.vectors[Y], row, pixel_position);
@@ -1643,6 +2027,7 @@ int main(int argc, char *argv[])
 	scene_load(context);
 	fclose(context->scene_file);
 	context->scene_file = NULL;
+	bvh_generate(context);
 
 	PRINT_TIME("INITIALIZED SCENE. BEGAN RENDERING.");
 

@@ -20,7 +20,6 @@
 *	Path tracing
 *	Improve refraction
 *	Optimize speed by considering LOD
-*	BVH with 4, 16, etc. nodes
 */
 
 #include <float.h>
@@ -131,12 +130,24 @@ typedef struct ObjectData ObjectData;
 /* BVH */
 typedef struct BVH BVH;
 typedef union BVHChild BVHChild;
-typedef struct BVHLeaf BVHLeaf;
+typedef struct BVHWithMorton BVHWithMorton;
 
 /*******************************************************************************
 *	GLOBAL
 *******************************************************************************/
 
+enum directions{
+	X = 0,
+	Y,
+	Z
+};
+
+typedef enum {
+	REFLECTION_PHONG,
+	REFLECTION_BLINN
+} ReflectionModel;
+
+/* Object */
 enum object_type {
 #ifdef UNBOUND_OBJECTS
 	OBJECT_PLANE,
@@ -144,11 +155,6 @@ enum object_type {
 	OBJECT_SPHERE,
 	OBJECT_TRIANGLE
 };
-enum directions{X, Y, Z};
-typedef enum {
-	REFLECTION_PHONG,
-	REFLECTION_BLINN
-} ReflectionModel;
 
 /* ERROR */
 typedef enum {
@@ -383,15 +389,20 @@ typedef union BVHChild {
 } BVHChild;
 
 typedef struct BVH {
-	size_t num_children; //leaves have only 1 child
+	size_t degree; //leaves have only 1 child
 	BoundingCuboid *bounding_cuboid;
 	BVHChild children[];
 } BVH;
 
-typedef struct BVHLeaf { //Only used when constructing BVH tree
+typedef struct BVHWithMorton { //Only used when constructing BVH tree
 	uint32_t morton_code;
 	BVH *bvh;
-} BVHLeaf;
+} BVHWithMorton;
+
+typedef struct BVHWithDistance { //Only used when optimizing node order
+	float distance;
+	BVH *bvh;
+} BVHWithDistance;
 
 /*******************************************************************************
 *	FUNCTION PROTOTYPE
@@ -421,6 +432,9 @@ void norm2(Vec2 vec);
 void norm3(Vec3 vec);
 float max3(const Vec3 vec);
 float min3(const Vec3 vec);
+float clamp(const float num, const float min, const float max);
+void clamp3(const Vec3 vec, const Vec3 min, const Vec3 max, Vec3 result);
+float magsqr3(const Vec3 vec);
 bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 bool line_intersects_sphere(const Vec3 sphere_position, const float sphere_radius, const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 uint32_t djb_hash(const char* cp);
@@ -488,15 +502,17 @@ void bounding_cuboid_delete(BoundingCuboid *bounding_cuboid);
 bool bounding_cuboid_intersects(const BoundingCuboid *cuboid, const Line *ray, float *tmax, float *tmin);
 
 /* BVH */
-BVH *bvh_new(const size_t num_children, BoundingCuboid *bounding_cuboid);
+BVH *bvh_new(const size_t degree, BoundingCuboid *bounding_cuboid);
 void bvh_delete(BVH *bvh);
 int bvh_morton_code_compare(const void *p1, const void *p2);
-BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const BVHLeaf *leaf_array, const size_t first, const size_t last);
+BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const BVHWithMorton *leaf_array, const size_t first, const size_t last);
 BoundingCuboid *bvh_generate_bounding_cuboid_node(const BVH *bvh_left, const BVH *bvh_right);
-BVH *bvh_generate_node(const BVHLeaf *leaf_array, const size_t first, const size_t last);
+BVH *bvh_generate_node(const BVHWithMorton *leaf_array, const size_t first, const size_t last);
 void bvh_generate(Context *context);
 void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance);
 bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity);
+int bvh_distance_compare(const void *p1, const void *p2);
+void bvh_optimize_node_order(const Context *context, BVH *bvh);
 void bvh_print(const BVH *bvh, const uint32_t depth);
 
 /* SCENE */
@@ -561,7 +577,7 @@ float mag2(const Vec2 vec)
 
 float mag3(const Vec3 vec)
 {
-	return sqrtf(sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]));
+	return sqrtf(magsqr3(vec));
 }
 
 float dot2(const Vec2 vec1, const Vec2 vec2)
@@ -697,9 +713,22 @@ float max3(const Vec3 vec)
     return max;
 }
 
-float fminf(const float num1, const float num2)
+float clamp(const float num, const float min, const float max)
 {
-	return num1 < num2 ? num1 : num2;
+	const float result = num < min ? min : num;
+	return result > max ? max : result;
+}
+
+void clamp3(const Vec3 vec, const Vec3 min, const Vec3 max, Vec3 result)
+{
+	result[X] = clamp(vec[X], min[X], max[X]);
+	result[Y] = clamp(vec[Y], min[Y], max[Y]);
+	result[Z] = clamp(vec[Z], min[Z], max[Z]);
+}
+
+float magsqr3(const Vec3 vec)
+{
+	return sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]);
 }
 
 //Möller–Trumbore intersection algorithm
@@ -911,10 +940,11 @@ void light_load(const cJSON *json, Light *light)
 *	BVH
 *******************************************************************************/
 
-BVH *bvh_new(const size_t num_children, BoundingCuboid *bounding_cuboid)
+//TODO: remove cuboid from new
+BVH *bvh_new(const size_t degree, BoundingCuboid *bounding_cuboid)
 {
-	BVH *bvh = malloc(sizeof(BVH) + num_children * sizeof(BVHChild));
-	bvh->num_children = num_children;
+	BVH *bvh = malloc(sizeof(BVH) + degree * sizeof(BVHChild));
+	bvh->degree = degree;
 	bvh->bounding_cuboid = bounding_cuboid;
 	return bvh;
 }
@@ -922,9 +952,9 @@ BVH *bvh_new(const size_t num_children, BoundingCuboid *bounding_cuboid)
 void bvh_delete(BVH *bvh)
 {
 	bounding_cuboid_delete(bvh->bounding_cuboid);
-	if (bvh->num_children > 1) {
+	if (bvh->degree > 1) {
 		size_t i;
-		for (i = 0; i < bvh->num_children; i++)
+		for (i = 0; i < bvh->degree; i++)
 			bvh_delete(bvh->children[i].bvh);
 	}
 	free(bvh);
@@ -932,23 +962,23 @@ void bvh_delete(BVH *bvh)
 
 int bvh_morton_code_compare(const void *p1, const void *p2)
 {
-	return (int)((BVHLeaf*)p1)->morton_code - (int)((BVHLeaf*)p2)->morton_code;
+	return (int)((BVHWithMorton*)p1)->morton_code - (int)((BVHWithMorton*)p2)->morton_code;
 }
 
-BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const BVHLeaf *leaf_array, const size_t first, const size_t last)
+BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const BVHWithMorton *leaf_array, const size_t first, const size_t last)
 {
 	Vec3 corners[2] = {{FLT_MAX}, {FLT_MIN}};
 	float epsilon = 0.f;
 	size_t i, j;
 	for (i = first; i <= last; i++) {
-		BVH *bvh = leaf_array[i].bvh;
+		BoundingCuboid *bounding_cuboid = leaf_array[i].bvh->bounding_cuboid;
+		if (epsilon < bounding_cuboid->epsilon)
+			epsilon = bounding_cuboid->epsilon;
 		for (j = 0; j < 3; j++) {
-			if (bvh->bounding_cuboid->corners[0][j] < corners[0][j])
-				corners[0][j] = bvh->bounding_cuboid->corners[0][j];
-			if (bvh->bounding_cuboid->corners[1][j] > corners[1][j])
-				corners[1][j] = bvh->bounding_cuboid->corners[1][j];
-			if (epsilon < bvh->children[0].object.common->epsilon)
-				epsilon = bvh->children[0].object.common->epsilon;
+			if (bounding_cuboid->corners[0][j] < corners[0][j])
+				corners[0][j] = bounding_cuboid->corners[0][j];
+			if (bounding_cuboid->corners[1][j] > corners[1][j])
+				corners[1][j] = bounding_cuboid->corners[1][j];
 		}
 	}
 	return bounding_cuboid_new(epsilon, corners);
@@ -973,7 +1003,7 @@ BoundingCuboid *bvh_generate_bounding_cuboid_node(const BVH *bvh_left, const BVH
 	return bounding_cuboid_new(epsilon, corners);
 }
 
-BVH *bvh_generate_node(const BVHLeaf *leaf_array, const size_t first, const size_t last)
+BVH *bvh_generate_node(const BVHWithMorton *leaf_array, const size_t first, const size_t last)
 {
 	if (first == last)
 		return leaf_array[first].bvh;
@@ -1022,7 +1052,7 @@ void bvh_generate(Context *context)
 #else
 	size_t num_leaves = context->num_objects;
 #endif
-	BVHLeaf *leaf_array = malloc(sizeof(BVHLeaf) * num_leaves);
+	BVHWithMorton *leaf_array = malloc(sizeof(BVHWithMorton) * num_leaves);
 
 	size_t i, j = 0;
 	for (i = 0; i < context->num_objects; i++) {
@@ -1055,7 +1085,7 @@ void bvh_generate(Context *context)
 
 	bounding_cuboid_delete(bounding_cuboid_scene);
 
-	qsort(leaf_array, num_leaves, sizeof(BVHLeaf), &bvh_morton_code_compare);
+	qsort(leaf_array, num_leaves, sizeof(BVHWithMorton), &bvh_morton_code_compare);
 
 	context->bvh = bvh_generate_node(leaf_array, 0, num_leaves - 1);
 
@@ -1066,7 +1096,7 @@ void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *close
 {
 	float tmin, tmax;
 
-	if (bvh->num_children == 1) {
+	if (bvh->degree == 1) {
 		Vec3 normal;
 		Object object = bvh->children[0].object;
 		if (object.common->object_data->get_intersection(object, ray, &tmin, normal) && tmin < *closest_distance) {
@@ -1078,7 +1108,7 @@ void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *close
 	}
 
 	size_t i;
-	for (i = 0; i < bvh->num_children; i++) {
+	for (i = 0; i < bvh->degree; i++) {
 		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin) && tmin < *closest_distance) {
 			bvh_get_closest_intersection(bvh->children[i].bvh, ray, closest_object, closest_normal, closest_distance);
 		}
@@ -1089,7 +1119,7 @@ bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance,
 {
 	float tmin, tmax;
 
-	if (bvh->num_children == 1) {
+	if (bvh->degree == 1) {
 		Vec3 normal;
 		Object object = bvh->children[0].object;
 		if (object.common->object_data->get_intersection(object, ray, &tmin, normal) && tmin < distance) {
@@ -1102,7 +1132,7 @@ bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance,
 	}
 
 	size_t i;
-	for (i = 0; i < bvh->num_children; i++) {
+	for (i = 0; i < bvh->degree; i++) {
 		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin) && tmin < distance) {
 			if (bvh_is_light_blocked(bvh->children[i].bvh, ray, distance, light_intensity))
 				return true;
@@ -1111,17 +1141,45 @@ bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance,
 	return false;
 }
 
+int bvh_distance_compare(const void *p1, const void *p2)
+{
+	return signbit(((BVHWithDistance*)p1)->distance - ((BVHWithDistance*)p2)->distance) ? -1 : 1;
+}
+
+void bvh_optimize_node_order(const Context *context, BVH *bvh)
+{
+	BVHWithDistance *array = malloc(sizeof(BVHWithDistance) * bvh->degree);
+	size_t i;
+	for (i = 0; i < bvh->degree; i++) {
+		BVH *node = bvh->children[i].bvh;
+		Vec3 point;
+		clamp3(context->camera->position, node->bounding_cuboid->corners[0], node->bounding_cuboid->corners[1], point);
+		sub3(point, context->camera->position, point);
+		float distance = magsqr3(point);
+		array[i] = (BVHWithDistance){.distance = distance, .bvh = node};
+		if (node->degree > 1)
+			bvh_optimize_node_order(context, node);
+	}
+
+	qsort(array, bvh->degree, sizeof(BVHWithDistance), &bvh_distance_compare);
+
+	for (i = 0; i < bvh->degree; i++)
+		bvh->children[i].bvh = array[i].bvh;
+
+	free(array);
+}
+
 void bvh_print(const BVH *bvh, const uint32_t depth)
 {
 	uint32_t i;
 	size_t j;
 	for (i = 0; i < depth; i++)
 		printf("\t");
-	if (bvh->num_children == 1) {
+	if (bvh->degree == 1) {
 		printf("%s\n", bvh->children[0].object.common->object_data->name);
 	} else {
 		printf("NODE\n");
-		for(j = 0; j < bvh->num_children; j++)
+		for(j = 0; j < bvh->degree; j++)
 			bvh_print(bvh->children[j].bvh, depth + 1);
 	}
 }
@@ -1877,7 +1935,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		&& material->reflective) {
 		Vec3 reflected_kr;
 		mul3v(kr, material->kr, reflected_kr);
-		if (context->minimum_light_intensity_sqr < sqr(reflected_kr[X]) + sqr(reflected_kr[Y]) + sqr(reflected_kr[Z])) {
+		if (context->minimum_light_intensity_sqr < magsqr3(reflected_kr)) {
 			Line reflection_ray;
 			memcpy(reflection_ray.position, point, sizeof(Vec3));
 			mul3(normal, 2 * dot3(ray->vector, normal), reflection_ray.vector);
@@ -1890,7 +1948,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	if (material->transparent) {
 		Vec3 refracted_kt;
 		mul3v(kr, material->kt, refracted_kt);
-		if (context->minimum_light_intensity_sqr < sqr(refracted_kt[X]) + sqr(refracted_kt[Y]) + sqr(refracted_kt[Z])) {
+		if (context->minimum_light_intensity_sqr < magsqr3(refracted_kt)) {
 			Line refraction_ray;
 			memcpy(refraction_ray.position, point, sizeof(Vec3));
 			float incident_angle = acosf(fabs(b));
@@ -2028,6 +2086,7 @@ int main(int argc, char *argv[])
 	fclose(context->scene_file);
 	context->scene_file = NULL;
 	bvh_generate(context);
+	bvh_optimize_node_order(context, context->bvh);
 
 	PRINT_TIME("INITIALIZED SCENE. BEGAN RENDERING.");
 

@@ -18,7 +18,6 @@
 * TODO:
 *	Treat emittant objects as lights
 *	Path tracing
-*	Improve refraction
 *	Optimize speed by considering LOD
 */
 
@@ -557,27 +556,31 @@ const ObjectData OBJECT_DATA[] = {
 /*******************************************************************************
 *	ALGORITHM
 *******************************************************************************/
-
+__attribute__((const))
 float sqr(const float val)
 {
 	return val * val;
 }
 
+__attribute__((const))
 float mag2(const Vec2 vec)
 {
 	return sqrtf(sqr(vec[X]) + sqr(vec[Y]));
 }
 
+__attribute__((const))
 float mag3(const Vec3 vec)
 {
 	return sqrtf(magsqr3(vec));
 }
 
+__attribute__((const))
 float dot2(const Vec2 vec1, const Vec2 vec2)
 {
 	return vec1[X] * vec2[X] + vec1[Y] * vec2[Y];
 }
 
+__attribute__((const))
 float dot3(const Vec3 vec1, const Vec3 vec2)
 {
 	return vec1[X] * vec2[X] + vec1[Y] * vec2[Y] + vec1[Z] * vec2[Z];
@@ -686,6 +689,7 @@ void norm3(Vec3 vec)
 	mul3(vec, 1.f / mag3(vec), vec);
 }
 
+__attribute__((const))
 float min3(const Vec3 vec)
 {
     float min = vec[0];
@@ -696,6 +700,7 @@ float min3(const Vec3 vec)
     return min;
 }
 
+__attribute__((const))
 float max3(const Vec3 vec)
 {
     float max = vec[0];
@@ -706,6 +711,7 @@ float max3(const Vec3 vec)
     return max;
 }
 
+__attribute__((const))
 float clamp(const float num, const float min, const float max)
 {
 	const float result = num < min ? min : num;
@@ -719,6 +725,7 @@ void clamp3(const Vec3 vec, const Vec3 min, const Vec3 max, Vec3 result)
 	result[Z] = clamp(vec[Z], min[Z], max[Z]);
 }
 
+__attribute__((const))
 float magsqr3(const Vec3 vec)
 {
 	return sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]);
@@ -1331,10 +1338,10 @@ bool sphere_get_intersection(const Object object, const Line *ray, float *distan
 {
 	Sphere *sphere = object.sphere;
 	if (line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, distance)) {
-			Vec3 position;
-			mul3(ray->vector, *distance, position);
-			add3(position, ray->position, position);
-			sub3(position, sphere->position, normal);
+			mul3(ray->vector, *distance, normal);
+			add3(normal, ray->position, normal);
+			sub3(normal, sphere->position, normal);
+			mul3(normal, 1.f / sphere->radius, normal);
 			return true;
 		}
 	return false;
@@ -1370,6 +1377,7 @@ Triangle *triangle_new(OBJECT_INIT_PARAMS, Vec3 vertices[3])
 	sub3(vertices[1], vertices[0], triangle->edges[0]);
 	sub3(vertices[2], vertices[0], triangle->edges[1]);
 	cross(triangle->edges[0], triangle->edges[1], triangle->normal);
+	norm3(triangle->normal);
 
 	return triangle;
 }
@@ -1423,7 +1431,6 @@ bool triangle_intersects_in_range(const Object object, const Line *ray, float mi
 	float distance;
 	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->position, ray->vector, triangle->epsilon, &distance);
 	return intersects && distance < min_distance;
-	return false;
 }
 
 BoundingCuboid *triangle_generate_bounding_cuboid(const Object object)
@@ -1452,6 +1459,7 @@ Plane *plane_new(OBJECT_INIT_PARAMS, const Vec3 normal, const Vec3 point)
 {
 	OBJECT_NEW(Plane, plane, OBJECT_PLANE);
 	memcpy(plane->normal, normal, sizeof(Vec3));
+	norm3(plane->normal);
 	plane->d = dot3(normal, point);
 
 	return plane;
@@ -1493,7 +1501,10 @@ bool plane_get_intersection(const Object object, const Line *ray, float *distanc
 		return false;
 	*distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
 	if (*distance > plane->epsilon) {
-		memcpy(normal, plane->normal, sizeof(Vec3));
+		if (a > 0.f)
+			mul3(plane->normal, -1.f, normal);
+		else
+			memcpy(normal, plane->normal, sizeof(Vec3));
 		return true;
 	}
 	return false;
@@ -1831,11 +1842,6 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	if (! object)
 		return;
 
-	norm3(normal);
-	float b = dot3(normal, ray->vector);
-	if (b > 0.f)
-		mul3(normal, -1.f, normal);
-
 	//LIGHTING MODEL
 	Vec3 obj_color;
 
@@ -1923,13 +1929,17 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		if (context->minimum_light_intensity_sqr < magsqr3(refracted_kt)) {
 			Line refraction_ray;
 			memcpy(refraction_ray.position, point, sizeof(Vec3));
+			float b = dot3(normal, ray->vector);
 			float incident_angle = acosf(fabs(b));
-			float refractive_multiplier = inside_object ? (material->refractive_index) : (1.f / material->refractive_index);
+			bool is_outside = signbit(b);
+			float refractive_multiplier = is_outside ? 1.f / material->refractive_index : material->refractive_index;
 			float refracted_angle = asinf(sinf(incident_angle) * refractive_multiplier);
 			float delta_angle = refracted_angle - incident_angle;
 			Vec3 c, f, g, h;
 			cross(ray->vector, normal, c);
 			norm3(c);
+			if (!is_outside)
+				mul3(c, -1.f, c);
 			cross(c, ray->vector, f);
 			mul3(ray->vector, cosf(delta_angle), g);
 			mul3(f, sinf(delta_angle), h);

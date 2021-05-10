@@ -389,7 +389,7 @@ typedef union BVHChild {
 } BVHChild;
 
 typedef struct BVH {
-	size_t degree; //leaves have only 1 child
+	bool is_leaf;
 	BoundingCuboid *bounding_cuboid;
 	BVHChild children[];
 } BVH;
@@ -398,11 +398,6 @@ typedef struct BVHWithMorton { //Only used when constructing BVH tree
 	uint32_t morton_code;
 	BVH *bvh;
 } BVHWithMorton;
-
-typedef struct BVHWithDistance { //Only used when optimizing node order
-	float distance;
-	BVH *bvh;
-} BVHWithDistance;
 
 /*******************************************************************************
 *	FUNCTION PROTOTYPE
@@ -502,7 +497,7 @@ void bounding_cuboid_delete(BoundingCuboid *bounding_cuboid);
 bool bounding_cuboid_intersects(const BoundingCuboid *cuboid, const Line *ray, float *tmax, float *tmin);
 
 /* BVH */
-BVH *bvh_new(const size_t degree, BoundingCuboid *bounding_cuboid);
+BVH *bvh_new(const bool is_leaf, BoundingCuboid *bounding_cuboid);
 void bvh_delete(BVH *bvh);
 int bvh_morton_code_compare(const void *p1, const void *p2);
 BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const BVHWithMorton *leaf_array, const size_t first, const size_t last);
@@ -511,8 +506,6 @@ BVH *bvh_generate_node(const BVHWithMorton *leaf_array, const size_t first, cons
 void bvh_generate(Context *context);
 void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance);
 bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity);
-int bvh_distance_compare(const void *p1, const void *p2);
-void bvh_optimize_node_order(const Context *context, BVH *bvh);
 void bvh_print(const BVH *bvh, const uint32_t depth);
 
 /* SCENE */
@@ -941,10 +934,10 @@ void light_load(const cJSON *json, Light *light)
 *******************************************************************************/
 
 //TODO: remove cuboid from new
-BVH *bvh_new(const size_t degree, BoundingCuboid *bounding_cuboid)
+BVH *bvh_new(const bool is_leaf, BoundingCuboid *bounding_cuboid)
 {
-	BVH *bvh = malloc(sizeof(BVH) + degree * sizeof(BVHChild));
-	bvh->degree = degree;
+	BVH *bvh = malloc(sizeof(BVH) + (is_leaf ? 1 : 2) * sizeof(BVHChild));
+	bvh->is_leaf = is_leaf;
 	bvh->bounding_cuboid = bounding_cuboid;
 	return bvh;
 }
@@ -952,10 +945,9 @@ BVH *bvh_new(const size_t degree, BoundingCuboid *bounding_cuboid)
 void bvh_delete(BVH *bvh)
 {
 	bounding_cuboid_delete(bvh->bounding_cuboid);
-	if (bvh->degree > 1) {
-		size_t i;
-		for (i = 0; i < bvh->degree; i++)
-			bvh_delete(bvh->children[i].bvh);
+	if (!bvh->is_leaf) {
+		bvh_delete(bvh->children[0].bvh);
+		bvh_delete(bvh->children[1].bvh);
 	}
 	free(bvh);
 }
@@ -1011,35 +1003,32 @@ BVH *bvh_generate_node(const BVHWithMorton *leaf_array, const size_t first, cons
 	uint32_t first_code = leaf_array[first].morton_code;
 	uint32_t last_code = leaf_array[last].morton_code;
 
+	size_t split;
 	if (first_code == last_code) {
-		size_t num_children = last - first + 1, i;
-		BVH *bvh = bvh_new(num_children, bvh_generate_bounding_cuboid_leaf(leaf_array, first, last));
-		for (i = 0; i < num_children; i++)
-			bvh->children[i].bvh = leaf_array[first + i].bvh;
-		return bvh;
-	}
+		split = (first + last) / 2;
+	} else {
+		split = first;
+		uint32_t common_prefix = clz(first_code ^ last_code);
+		size_t step = last - first;
 
-	uint32_t common_prefix = clz(first_code ^ last_code);
-	size_t split = first;
-	size_t step = last - first;
+		do {
+			step = (step + 1) >> 1; // exponential decrease
+			size_t new_split = split + step; // proposed new position
 
-	do {
-		step = (step + 1) >> 1; // exponential decrease
-		size_t new_split = split + step; // proposed new position
-
-		if (new_split < last) {
-			uint32_t split_code = leaf_array[new_split].morton_code;
-			if (first_code ^ split_code) {
-				uint32_t split_prefix = clz(first_code ^ split_code);
-				if (split_prefix > common_prefix)
-					split = new_split; // accept proposal
+			if (new_split < last) {
+				uint32_t split_code = leaf_array[new_split].morton_code;
+				if (first_code ^ split_code) {
+					uint32_t split_prefix = clz(first_code ^ split_code);
+					if (split_prefix > common_prefix)
+						split = new_split; // accept proposal
+				}
 			}
-		}
-	} while (step > 1);
+		} while (step > 1);
+	}
 
 	BVH *bvh_left = bvh_generate_node(leaf_array, first, split);
 	BVH *bvh_right = bvh_generate_node(leaf_array, split + 1, last);
-	BVH *bvh = bvh_new(2, bvh_generate_bounding_cuboid_node(bvh_left, bvh_right));
+	BVH *bvh = bvh_new(false, bvh_generate_bounding_cuboid_node(bvh_left, bvh_right));
 	bvh->children[0].bvh = bvh_left;
 	bvh->children[1].bvh = bvh_right;
 	return bvh;
@@ -1060,7 +1049,7 @@ void bvh_generate(Context *context)
 #ifdef UNBOUND_OBJECTS
 		if (object.common->object_data->is_bounded) {
 #endif
-			BVH *bvh = bvh_new(1, object.common->object_data->generate_bounding_cuboid(object));
+			BVH *bvh = bvh_new(true, object.common->object_data->generate_bounding_cuboid(object));
 			bvh->children[0].object = object;
 			leaf_array[j++].bvh = bvh;
 #ifdef UNBOUND_OBJECTS
@@ -1094,24 +1083,34 @@ void bvh_generate(Context *context)
 
 void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance)
 {
-	float tmin, tmax;
-
-	if (bvh->degree == 1) {
+	if (bvh->is_leaf) {
 		Vec3 normal;
 		Object object = bvh->children[0].object;
-		if (object.common->object_data->get_intersection(object, ray, &tmin, normal) && tmin < *closest_distance) {
-			*closest_distance = tmin;
+		float distance;
+		if (object.common->object_data->get_intersection(object, ray, &distance, normal) && distance < *closest_distance) {
+			*closest_distance = distance;
 			*closest_object = object;
 			memcpy(closest_normal, normal, sizeof(Vec3));
 		}
 		return;
 	}
 
-	size_t i;
-	for (i = 0; i < bvh->degree; i++) {
-		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin) && tmin < *closest_distance) {
-			bvh_get_closest_intersection(bvh->children[i].bvh, ray, closest_object, closest_normal, closest_distance);
+	bool intersect_l, intersect_r;
+	float tmin_l, tmin_r, tmax;
+	intersect_l = bounding_cuboid_intersects(bvh->children[0].bvh->bounding_cuboid, ray, &tmax, &tmin_l) && tmin_l < *closest_distance;
+	intersect_r = bounding_cuboid_intersects(bvh->children[1].bvh->bounding_cuboid, ray, &tmax, &tmin_r) && tmin_r < *closest_distance;
+	if (intersect_l && intersect_r) {
+		if (tmin_l < tmin_r) {
+			bvh_get_closest_intersection(bvh->children[0].bvh, ray, closest_object, closest_normal, closest_distance);
+			bvh_get_closest_intersection(bvh->children[1].bvh, ray, closest_object, closest_normal, closest_distance);
+		} else {
+			bvh_get_closest_intersection(bvh->children[1].bvh, ray, closest_object, closest_normal, closest_distance);
+			bvh_get_closest_intersection(bvh->children[0].bvh, ray, closest_object, closest_normal, closest_distance);
 		}
+	} else if (intersect_l) {
+		bvh_get_closest_intersection(bvh->children[0].bvh, ray, closest_object, closest_normal, closest_distance);
+	} else if (intersect_r) {
+		bvh_get_closest_intersection(bvh->children[1].bvh, ray, closest_object, closest_normal, closest_distance);
 	}
 }
 
@@ -1119,7 +1118,7 @@ bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance,
 {
 	float tmin, tmax;
 
-	if (bvh->degree == 1) {
+	if (bvh->is_leaf) {
 		Vec3 normal;
 		Object object = bvh->children[0].object;
 		if (object.common->object_data->get_intersection(object, ray, &tmin, normal) && tmin < distance) {
@@ -1132,41 +1131,14 @@ bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance,
 	}
 
 	size_t i;
-	for (i = 0; i < bvh->degree; i++) {
-		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin) && tmin < distance) {
-			if (bvh_is_light_blocked(bvh->children[i].bvh, ray, distance, light_intensity))
-				return true;
-		}
+#pragma GCC unroll 2
+	for (i = 0; i < 2; i++) {
+		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin)
+			&& tmin < distance
+			&& bvh_is_light_blocked(bvh->children[i].bvh, ray, distance, light_intensity))
+			return true;
 	}
 	return false;
-}
-
-int bvh_distance_compare(const void *p1, const void *p2)
-{
-	return signbit(((BVHWithDistance*)p1)->distance - ((BVHWithDistance*)p2)->distance) ? -1 : 1;
-}
-
-void bvh_optimize_node_order(const Context *context, BVH *bvh)
-{
-	BVHWithDistance *array = malloc(sizeof(BVHWithDistance) * bvh->degree);
-	size_t i;
-	for (i = 0; i < bvh->degree; i++) {
-		BVH *node = bvh->children[i].bvh;
-		Vec3 point;
-		clamp3(context->camera->position, node->bounding_cuboid->corners[0], node->bounding_cuboid->corners[1], point);
-		sub3(point, context->camera->position, point);
-		float distance = magsqr3(point);
-		array[i] = (BVHWithDistance){.distance = distance, .bvh = node};
-		if (node->degree > 1)
-			bvh_optimize_node_order(context, node);
-	}
-
-	qsort(array, bvh->degree, sizeof(BVHWithDistance), &bvh_distance_compare);
-
-	for (i = 0; i < bvh->degree; i++)
-		bvh->children[i].bvh = array[i].bvh;
-
-	free(array);
 }
 
 void bvh_print(const BVH *bvh, const uint32_t depth)
@@ -1175,11 +1147,11 @@ void bvh_print(const BVH *bvh, const uint32_t depth)
 	size_t j;
 	for (i = 0; i < depth; i++)
 		printf("\t");
-	if (bvh->degree == 1) {
+	if (bvh->is_leaf) {
 		printf("%s\n", bvh->children[0].object.common->object_data->name);
 	} else {
 		printf("NODE\n");
-		for(j = 0; j < bvh->degree; j++)
+		for(j = 0; j < 2; j++)
 			bvh_print(bvh->children[j].bvh, depth + 1);
 	}
 }
@@ -2008,7 +1980,7 @@ void process_arguments(int argc, char *argv[], Context *context)
 				exit(0);
 			}
 		}
-		err_assert(false, ERR_ARGC);
+		err(ERR_ARGC);
 	}
 
 	int32_t i;
@@ -2037,7 +2009,7 @@ void process_arguments(int argc, char *argv[], Context *context)
 					err_assert(NUM_THREADS <= omp_get_max_threads(), ERR_ARGV_NUM_THREADS);
 				}
 				#else
-				err_assert(false, ERR_ARGV_MULTITHREADING);
+				err(ERR_ARGV_MULTITHREADING);
 				#endif /* MULTITHREADING */
 				break;
 			case 5859050://-b
@@ -2055,11 +2027,11 @@ void process_arguments(int argc, char *argv[], Context *context)
 					context->reflection_model = REFLECTION_BLINN;
 					break;
 				default:
-					err_assert(false, ERR_ARGV_REFLECTION);
+					err(ERR_ARGV_REFLECTION);
 				}
 				break;
 			default:
-				err_assert(false, ERR_ARGV_UNRECOGNIZED);
+				err(ERR_ARGV_UNRECOGNIZED);
 		}
 	}
 	err_assert(context->scene_file, ERR_ARGV_IO_OPEN_SCENE);
@@ -2086,7 +2058,6 @@ int main(int argc, char *argv[])
 	fclose(context->scene_file);
 	context->scene_file = NULL;
 	bvh_generate(context);
-	bvh_optimize_node_order(context, context->bvh);
 
 	PRINT_TIME("INITIALIZED SCENE. BEGAN RENDERING.");
 

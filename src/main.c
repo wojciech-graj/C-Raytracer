@@ -19,6 +19,10 @@
 *	Treat emittant objects as lights
 *	Path tracing
 *	Optimize speed by considering LOD
+* 	Option to normalize all pixels afterwards
+* 	Change naming of algorithm functions
+* 	Distance falloff
+* 	Denoising
 */
 
 #include <float.h>
@@ -28,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "../lib/cJSON.h"
 
@@ -36,10 +41,9 @@
 *******************************************************************************/
 
 #ifdef DISPLAY_TIME
-#include <time.h>
 #define PRINT_TIME(msg)\
 	timespec_get(&current_t, TIME_UTC);\
-	printf("[%07.3f] %s\n", (double)((current_t.tv_sec - start_t.tv_sec) + (current_t.tv_nsec - start_t.tv_nsec) * 1e-9f), msg);
+	printf("[%07.3f] %s\n", (current_t.tv_sec - start_t.tv_sec) + (current_t.tv_nsec - start_t.tv_nsec) * 1e-9, msg);
 #else
 #define PRINT_TIME(format)
 #endif
@@ -99,6 +103,7 @@ uint32_t NUM_THREADS = 1;
 typedef uint8_t Color[3];
 typedef float Vec2[2];
 typedef float Vec3[3];
+typedef Vec3 Mat3[3];
 
 typedef struct Context Context;
 typedef struct Line Line;
@@ -138,13 +143,18 @@ typedef struct BVHWithMorton BVHWithMorton;
 enum directions{
 	X = 0,
 	Y,
-	Z
+	Z,
 };
 
 typedef enum {
 	REFLECTION_PHONG,
-	REFLECTION_BLINN
+	REFLECTION_BLINN,
 } ReflectionModel;
+
+typedef enum {
+	GLOBAL_ILLUMINATION_AMBIENT,
+	GLOBAL_ILLUMINATION_PATH_TRACING,
+} GlobalIlluminationModel;
 
 /* Object */
 enum object_type {
@@ -162,6 +172,7 @@ typedef enum {
 	ERR_ARGV_NUM_THREADS,
 	ERR_ARGV_MULTITHREADING,
 	ERR_ARGV_REFLECTION,
+	ERR_ARGV_GLOBAL_ILLUMINATION,
 	ERR_ARGV_UNRECOGNIZED,
 	ERR_ARGV_IO_OPEN_SCENE,
 	ERR_ARGV_IO_OPEN_OUTPUT,
@@ -201,6 +212,7 @@ const char *ERR_MESSAGES[ERR_END] = {
 	[ERR_ARGV_NUM_THREADS] = 	"ARGV: Specified number of threads is greater than the available number of threads.",
 	[ERR_ARGV_MULTITHREADING] = 	"ARGV: Multithreading is disabled. To enable it, recompile the program with the -DMULTITHREADING parameter.",
 	[ERR_ARGV_REFLECTION] = 	"ARGV: Unrecognized reflection model.",
+	[ERR_ARGV_GLOBAL_ILLUMINATION] ="ARGV: Unrecognized global illumination model.",
 	[ERR_ARGV_UNRECOGNIZED] = 	"ARGV: Unrecognized argument. Use --help to find out which arguments can be used.",
 	[ERR_ARGV_IO_OPEN_SCENE] = 	"ARGV:I/O : Unable to open scene file.",
 	[ERR_ARGV_IO_OPEN_OUTPUT] = 	"ARGV:I/O : Unable to open output file.",
@@ -240,16 +252,18 @@ REQUIRED PARAMS:\n\
 --output     [-o] (string)            : specifies the file to which the image will be saved. Must end in .ppm\n\
 --resolution [-r] (integer) (integer) : specifies the resolution of the output image\n\
 OPTIONAL PARAMS:\n\
--m (integer)   : DEFAULT = 1     : specifies the number of CPU cores\n\
-	Accepted values:\n\
+-m (integer)   : DEFAULT = 1       : specifies the number of CPU cores\n\
 	(integer)  : allocates (integer) amount of CPU cores\n\
 	max        : allocates the maximum number of cores\n\
--b (integer)   : DEFAULT = 10    : specifies the maximum number of times that a light ray can bounce. Large values: (integer) > 100 may cause stack overflows\n\
--a (float)     : DEFAULT = 0.01  : specifies the minimum light intensity for which a ray is cast\n\
--s (string)    : DEFAULT = phong : specifies the reflection model\n\
-	Accepted values:\n\
+-b (integer)   : DEFAULT = 10      : specifies the maximum number of times that a light ray can bounce. Large values: (integer) > 100 may cause stack overflows\n\
+-a (float)     : DEFAULT = 0.01    : specifies the minimum light intensity for which a ray is cast\n\
+-s (string)    : DEFAULT = phong   : specifies the reflection model\n\
 	phong      : phong reflection model\n\
-	blinn      : blinn-phong reflection model\n";
+	blinn      : blinn-phong reflection model\n\
+-g (string)    : DEFAULT = ambient : specifies the global illumination model\n\
+	ambient    : ambient lighting\n\
+	path       : path-tracing\n\
+-n (integer)   : DEFAULT = 1       : specifies the number of samples which are rendered per pixel\n";
 
 /*******************************************************************************
 *	STRUCTURE DEFINITION
@@ -277,7 +291,9 @@ typedef struct Context {
 	uint32_t max_bounces;
 	float minimum_light_intensity_sqr;
 	ReflectionModel reflection_model;
+	GlobalIlluminationModel global_illumination_model;
 	uint32_t resolution[2];
+	size_t samples_per_pixel;
 } Context;
 
 typedef struct Line {
@@ -429,6 +445,10 @@ float min3(const Vec3 vec);
 float clamp(const float num, const float min, const float max);
 void clamp3(const Vec3 vec, const Vec3 min, const Vec3 max, Vec3 result);
 float magsqr3(const Vec3 vec);
+void mul3mat(Mat3 mat, const float *restrict vec, float *restrict result);
+void mulmat(Mat3 mat, const float mul, Mat3 result);
+void mulmat(Mat3 mat, const float mul, Mat3 result);
+float rand_flt(void);
 bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 bool line_intersects_sphere(const Vec3 sphere_position, const float sphere_radius, const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 uint32_t djb_hash(const char* cp);
@@ -731,6 +751,32 @@ float magsqr3(const Vec3 vec)
 	return sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]);
 }
 
+void mul3mat(Mat3 mat, const float *restrict vec, float *restrict result)
+{
+	result[X] = dot3(mat[X], vec);
+	result[Y] = dot3(mat[Y], vec);
+	result[Z] = dot3(mat[Z], vec);
+}
+
+void mulmat(Mat3 mat, const float mul, Mat3 result)
+{
+	mul3(mat[X], mul, result[X]);
+	mul3(mat[Y], mul, result[Y]);
+	mul3(mat[Z], mul, result[Z]);
+}
+
+void addmat(Mat3 mat1, Mat3 mat2, Mat3 result)
+{
+	add3(mat1[X], mat2[X], result[X]);
+	add3(mat1[Y], mat2[Y], result[Y]);
+	add3(mat1[Z], mat2[Z], result[Z]);
+}
+
+float rand_flt(void)
+{
+	return rand() / (float) RAND_MAX;
+}
+
 //Möller–Trumbore intersection algorithm
 bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance)
 {
@@ -806,7 +852,9 @@ Context *context_new(void)
 	*context = (Context) {
 			.max_bounces = 10,
 			.minimum_light_intensity_sqr = .01f * .01f,
+			.global_illumination_model = GLOBAL_ILLUMINATION_AMBIENT,
 			.reflection_model = REFLECTION_PHONG,
+			.samples_per_pixel = 1,
 			.resolution = {600, 400},
 	};
 	return context;
@@ -1501,10 +1549,10 @@ bool plane_get_intersection(const Object object, const Line *ray, float *distanc
 		return false;
 	*distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
 	if (*distance > plane->epsilon) {
-		if (a > 0.f)
-			mul3(plane->normal, -1.f, normal);
-		else
+		if (signbit(a))
 			memcpy(normal, plane->normal, sizeof(Vec3));
+		else
+			mul3(plane->normal, -1.f, normal);
 		return true;
 	}
 	return false;
@@ -1575,7 +1623,7 @@ void stl_load_objects(OBJECT_INIT_PARAMS, Context *context, FILE *file, const Ve
 
 	float a = cosf(rot[Z]) * sinf(rot[Y]);
 	float b = sinf(rot[Z]) * sinf(rot[Y]);
-	Vec3 rotation_matrix[3] = {
+	Mat3 rotation_matrix = {
 		{
 			cosf(rot[Z]) * cosf(rot[Y]),
 			a * sinf(rot[X]) - sinf(rot[Z]) * cosf(rot[X]),
@@ -1603,11 +1651,9 @@ void stl_load_objects(OBJECT_INIT_PARAMS, Context *context, FILE *file, const Ve
 
 		uint32_t j;
 		for (j = 0; j < 3; j++) {
-			Vec3 rotated_vertex = {
-				dot3(rotation_matrix[X], stl_triangle.vertices[j]),
-				dot3(rotation_matrix[Y], stl_triangle.vertices[j]),
-				dot3(rotation_matrix[Z], stl_triangle.vertices[j])};
-			mul3(rotated_vertex, scale, stl_triangle.vertices[j]);
+			Vec3 temp_vertices;
+			mul3mat(rotation_matrix, stl_triangle.vertices[j], temp_vertices);
+			mul3(temp_vertices, scale, stl_triangle.vertices[j]);
 			add3(stl_triangle.vertices[j], position, stl_triangle.vertices[j]);
 		}
 		Object object;
@@ -1823,7 +1869,7 @@ bool is_light_blocked(const Context *context, const Line *ray, const float dista
 #endif
 }
 
-void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t bounce_count, CommonObject *inside_object)
+void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t remaining_bounces, CommonObject *inside_object)
 {
 	Object closest_object;
 	closest_object.common = NULL;
@@ -1851,11 +1897,8 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 
 	Material *material = object->material;
 
-	//ambient
-	mul3v(material->ka, context->global_ambient_light_intensity, obj_color);
-
 	//emittance
-	add3(material->ke, obj_color, obj_color);
+	memcpy(obj_color, material->ke, sizeof(Vec3));
 
 	//Line from point to light
 	Line light_ray;
@@ -1902,10 +1945,78 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			add3_3(obj_color, diffuse, specular, obj_color);
 		}
 	}
+
+
+	float b = dot3(normal, ray->vector);
+	bool is_outside = signbit(b);
+
+	//ambient
+	switch (context->global_illumination_model) {
+	case GLOBAL_ILLUMINATION_AMBIENT:
+		mul3v(material->ka, context->global_ambient_light_intensity, obj_color);
+		break;
+	case GLOBAL_ILLUMINATION_PATH_TRACING:
+		if (remaining_bounces && is_outside) {
+			Mat3 rotation_matrix;
+			if (normal[Y] - object->epsilon < -1.f) {
+				Mat3 vx = {
+					{1.f, 0.f, 0.f},
+					{0.f, -1.f, 0.f},
+					{0.f, 0.f, -1.f},
+				};
+				memcpy(rotation_matrix, vx, sizeof(Mat3));
+			} else {
+				float mul = 1.f / (1.f + dot3((Vec3){0.f, 1.f, 0.f}, normal));
+				Mat3 vx = {
+					{
+						1 - sqr(normal[X]) * mul,
+						normal[X],
+						-normal[X] * normal[Z] * mul,
+					},
+					{
+						-normal[X],
+						1 - (sqr(normal[X]) + sqr(normal[Z])) * mul,
+						-normal[Z],
+					},
+					{
+						-normal[X] * normal[Z] * mul,
+						normal[Z],
+						1 - sqr(normal[Z]) * mul,
+					},
+				};
+				memcpy(rotation_matrix, vx, sizeof(Mat3));
+			}
+
+			Vec3 delta = {1.f, 1.f, 1.f};
+			size_t num_samples;
+			if (remaining_bounces == context->max_bounces) {
+				num_samples = context->samples_per_pixel;
+				mul3(delta, 1.f / (float)num_samples, delta);
+			} else {
+				num_samples = 1;
+			}
+
+			Vec3 light_mul;
+			for (size_t i = 0; i < num_samples; i++) {
+				float inclination = acosf(rand_flt() * 2.f - 1.f);
+				float azimuth = rand_flt() * PI;
+				Vec3 apoint = {
+					cosf(azimuth) * sinf(inclination),
+					sinf(azimuth) * sinf(inclination),
+					cosf(inclination),
+				};
+				mul3mat(rotation_matrix, apoint, light_ray.vector);
+				mul3(delta, dot3(normal, light_ray.vector), light_mul);
+				cast_ray(context, &light_ray, light_mul, obj_color, 0, NULL);
+			}
+		}
+		break;
+	}
+
 	mul3v(obj_color, kr, obj_color);
 	add3(color, obj_color, color);
 
-	if(bounce_count >= context->max_bounces)
+	if(!remaining_bounces)
 		return;
 
 	//reflection
@@ -1916,9 +2027,9 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		if (context->minimum_light_intensity_sqr < magsqr3(reflected_kr)) {
 			Line reflection_ray;
 			memcpy(reflection_ray.position, point, sizeof(Vec3));
-			mul3(normal, 2 * dot3(ray->vector, normal), reflection_ray.vector);
+			mul3(normal, 2 * b, reflection_ray.vector);
 			sub3(ray->vector, reflection_ray.vector, reflection_ray.vector);
-			cast_ray(context, &reflection_ray, reflected_kr, color, bounce_count + 1, NULL);
+			cast_ray(context, &reflection_ray, reflected_kr, color, remaining_bounces - 1, NULL);
 		}
 	}
 
@@ -1929,9 +2040,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		if (context->minimum_light_intensity_sqr < magsqr3(refracted_kt)) {
 			Line refraction_ray;
 			memcpy(refraction_ray.position, point, sizeof(Vec3));
-			float b = dot3(normal, ray->vector);
 			float incident_angle = acosf(fabs(b));
-			bool is_outside = signbit(b);
 			float refractive_multiplier = is_outside ? 1.f / material->refractive_index : material->refractive_index;
 			float refracted_angle = asinf(sinf(incident_angle) * refractive_multiplier);
 			float delta_angle = refracted_angle - incident_angle;
@@ -1945,7 +2054,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			mul3(f, sinf(delta_angle), h);
 			add3(g, h, refraction_ray.vector);
 			norm3(refraction_ray.vector);
-			cast_ray(context, &refraction_ray, refracted_kt, color, bounce_count + 1, object);
+			cast_ray(context, &refraction_ray, refracted_kt, color, remaining_bounces - 1, object);
 		}
 	}
 }
@@ -1967,10 +2076,10 @@ void create_image(const Context *context)
 		uint32_t col;
 		for (col = 0; col < camera->image.resolution[X]; col++) {
 			add3(pixel_position, camera->image.vectors[X], pixel_position);
-			Vec3 color = {0., 0., 0.};
+			Vec3 color = {0.f, 0.f, 0.f};
 			sub3(pixel_position, camera->position, ray.vector);
 			norm3(ray.vector);
-			cast_ray(context, &ray, kr, color, 0, NULL);
+			cast_ray(context, &ray, kr, color, context->max_bounces, NULL);
 			mul3(color, 255., color);
 			uint8_t *pixel = camera->image.pixels[pixel_index];
 			pixel[0] = fmaxf(fminf(color[0], 255.), 0.);
@@ -2040,6 +2149,21 @@ void process_arguments(int argc, char *argv[], Context *context)
 					err(ERR_ARGV_REFLECTION);
 				}
 				break;
+			case 5859055://-g
+				switch (djb_hash(argv[i + 1])) {
+				case 354625309://ambient
+					context->global_illumination_model = GLOBAL_ILLUMINATION_AMBIENT;
+					break;
+				case 2088095368://path
+					context->global_illumination_model = GLOBAL_ILLUMINATION_PATH_TRACING;
+					break;
+				default:
+					err(ERR_ARGV_GLOBAL_ILLUMINATION);
+				}
+				break;
+			case 5859046://-n
+				context->samples_per_pixel = abs(atoi(argv[i + 1]));
+				break;
 			default:
 				err(ERR_ARGV_UNRECOGNIZED);
 		}
@@ -2050,10 +2174,10 @@ void process_arguments(int argc, char *argv[], Context *context)
 
 int main(int argc, char *argv[])
 {
-#ifdef DISPLAY_TIME
 	struct timespec start_t, current_t;
 	timespec_get(&start_t, TIME_UTC);
-#endif
+
+	srand((unsigned) start_t.tv_sec);
 
 	Context *context = context_new();
 	process_arguments(argc, argv, context);

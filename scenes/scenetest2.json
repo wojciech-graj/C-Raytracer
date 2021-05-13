@@ -96,7 +96,7 @@
 			{
 				"material": 1,
 				"epsilon": 0.00025,
-				"position": [3.0, 0.0, 10.0],
+				"position": [4.0, 0.0, 10.0],
 				"radius": 2.0
 			}
 		},

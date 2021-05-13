@@ -17,12 +17,10 @@
 /*
 * TODO:
 *	Treat emittant objects as lights
-*	Path tracing
 *	Optimize speed by considering LOD
-* 	Option to normalize all pixels afterwards
 * 	Change naming of algorithm functions
-* 	Distance falloff
 * 	Denoising
+* 	Remove point lights
 */
 
 #include <float.h>
@@ -156,6 +154,11 @@ typedef enum {
 	GLOBAL_ILLUMINATION_PATH_TRACING,
 } GlobalIlluminationModel;
 
+typedef enum {
+	LIGHT_ATTENUATION_LINEAR,
+	LIGHT_ATTENUATION_SQUARE,
+} LightAttenuation;
+
 /* Object */
 enum object_type {
 #ifdef UNBOUND_OBJECTS
@@ -173,6 +176,7 @@ typedef enum {
 	ERR_ARGV_MULTITHREADING,
 	ERR_ARGV_REFLECTION,
 	ERR_ARGV_GLOBAL_ILLUMINATION,
+	ERR_ARGV_LIGHT_ATTENUATION,
 	ERR_ARGV_UNRECOGNIZED,
 	ERR_ARGV_IO_OPEN_SCENE,
 	ERR_ARGV_IO_OPEN_OUTPUT,
@@ -213,6 +217,7 @@ const char *ERR_MESSAGES[ERR_END] = {
 	[ERR_ARGV_MULTITHREADING] = 	"ARGV: Multithreading is disabled. To enable it, recompile the program with the -DMULTITHREADING parameter.",
 	[ERR_ARGV_REFLECTION] = 	"ARGV: Unrecognized reflection model.",
 	[ERR_ARGV_GLOBAL_ILLUMINATION] ="ARGV: Unrecognized global illumination model.",
+	[ERR_ARGV_LIGHT_ATTENUATION] =  "ARGV: Unrecognized light attenuation.",
 	[ERR_ARGV_UNRECOGNIZED] = 	"ARGV: Unrecognized argument. Use --help to find out which arguments can be used.",
 	[ERR_ARGV_IO_OPEN_SCENE] = 	"ARGV:I/O : Unable to open scene file.",
 	[ERR_ARGV_IO_OPEN_OUTPUT] = 	"ARGV:I/O : Unable to open output file.",
@@ -263,7 +268,11 @@ OPTIONAL PARAMS:\n\
 -g (string)    : DEFAULT = ambient : specifies the global illumination model\n\
 	ambient    : ambient lighting\n\
 	path       : path-tracing\n\
--n (integer)   : DEFAULT = 1       : specifies the number of samples which are rendered per pixel\n";
+-n (integer)   : DEFAULT = 1       : specifies the number of samples which are rendered per pixel\n\
+-c             : DEFAULT = OFF     : normalizes values of pixels so that entire color spectrum is utilized\n\
+-a (string)    : DEFAULT = sqr     : specifies how light should be attenuated\n\
+	lin        : inverse linear\n\
+	sqr        : inverse square\n";
 
 /*******************************************************************************
 *	STRUCTURE DEFINITION
@@ -294,6 +303,8 @@ typedef struct Context {
 	GlobalIlluminationModel global_illumination_model;
 	uint32_t resolution[2];
 	size_t samples_per_pixel;
+	bool normalize_colors;
+	LightAttenuation light_attenuation;
 } Context;
 
 typedef struct Line {
@@ -395,6 +406,8 @@ typedef struct ObjectData {
 	bool (*intersects_in_range)(const Object, const Line*, float);
 	void (*delete)(Object);
 	BoundingCuboid *(*generate_bounding_cuboid)(const Object);
+	void (*get_corners)(const Object, Vec3[2]);
+	void (*scale)(const Object, const Vec3, const float);
 } ObjectData;
 
 /* BVH */
@@ -462,10 +475,12 @@ Camera *camera_new(const Vec3 position, Vec3 vectors[2], const float fov, const 
 void camera_delete(Camera *camera);
 Camera *camera_load(const cJSON *json, Context *context);
 void save_image(FILE *file, const Image *image);
+void camera_scale(Camera *camera, const Vec3 neg_shift, const float scale);
 
 /* Light */
 void light_init(Light *light, const Vec3 position, const Vec3 intensity);
 void light_load(const cJSON *json, Light *light);
+void light_scale(Light *light, const Vec3 neg_shift, const float scale);
 
 /* Material */
 void material_init(Material *material, const int32_t id, const Vec3 ks, const Vec3 kd, const Vec3 ka, const Vec3 kr, const Vec3 kt, const Vec3 ke, const float shininess, const float refractive_index);
@@ -487,6 +502,8 @@ Sphere *sphere_load(const cJSON *json, Context *context);
 bool sphere_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal);
 bool sphere_intersects_in_range(const Object object, const Line *ray, const float min_distance);
 BoundingCuboid *sphere_generate_bounding_cuboid(const Object object);
+void sphere_get_corners(const Object object, Vec3 corners[2]);
+void sphere_scale(const Object object, const Vec3 neg_shift, const float scale);
 
 /* Triangle */
 Triangle *triangle_new(OBJECT_INIT_PARAMS, Vec3 vertices[3]);
@@ -495,6 +512,8 @@ Triangle *triangle_load(const cJSON *json, Context *context);
 bool triangle_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal);
 bool triangle_intersects_in_range(const Object object, const Line *ray, float min_distance);
 BoundingCuboid *triangle_generate_bounding_cuboid(const Object object);
+void triangle_get_corners(const Object object, Vec3 corners[2]);
+void triangle_scale(const Object object, const Vec3 neg_shift, const float scale);
 
 /* Plane */
 #ifdef UNBOUND_OBJECTS
@@ -503,6 +522,7 @@ void plane_delete(Object object);
 Plane *plane_load(const cJSON *json, Context *context);
 bool plane_get_intersection(const Object object, const Line *ray, float *distance, Vec3 normal);
 bool plane_intersects_in_range(const Object object, const Line *ray, float min_distance);
+void plane_scale(const Object object, const Vec3 neg_shift, const float scale);
 #endif
 
 /* Mesh */
@@ -525,7 +545,9 @@ BVH *bvh_generate_node(const BVHWithMorton *leaf_array, const size_t first, cons
 void bvh_generate(Context *context);
 void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance);
 bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity);
+#ifdef DEBUG
 void bvh_print(const BVH *bvh, const uint32_t depth);
+#endif
 
 /* SCENE */
 void cJSON_parse_float_array(const cJSON *json, float *array);
@@ -535,6 +557,7 @@ void scene_load(Context *context);
 void err(const ErrorCode error_code);
 void get_closest_intersection(const Context *context, const Line *ray, Object *closest_object, Vec3 closest_normal, float *closest_distance);
 bool is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity);
+void normalize_scene(Context *context);
 void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t bounce_count, CommonObject *inside_object);
 void create_image(const Context *context);
 void process_arguments(int argc, char *argv[], Context *context);
@@ -549,6 +572,7 @@ const ObjectData OBJECT_DATA[] = {
 		.get_intersection = &plane_get_intersection,
 		.intersects_in_range = &plane_intersects_in_range,
 		.delete = &plane_delete,
+		.scale = &plane_scale,
 	},
 #endif
 	[OBJECT_SPHERE] = {
@@ -560,6 +584,8 @@ const ObjectData OBJECT_DATA[] = {
 		.intersects_in_range = &sphere_intersects_in_range,
 		.delete = &sphere_delete,
 		.generate_bounding_cuboid = &sphere_generate_bounding_cuboid,
+		.get_corners = &sphere_get_corners,
+		.scale = &sphere_scale,
 	},
 	[OBJECT_TRIANGLE] = {
 		.name = "Triangle",
@@ -570,6 +596,8 @@ const ObjectData OBJECT_DATA[] = {
 		.intersects_in_range = &triangle_intersects_in_range,
 		.delete = &triangle_delete,
 		.generate_bounding_cuboid = &triangle_generate_bounding_cuboid,
+		.get_corners = &triangle_get_corners,
+		.scale = &triangle_scale,
 	},
 };
 
@@ -856,6 +884,8 @@ Context *context_new(void)
 			.reflection_model = REFLECTION_PHONG,
 			.samples_per_pixel = 1,
 			.resolution = {600, 400},
+			.normalize_colors = false,
+			.light_attenuation = LIGHT_ATTENUATION_SQUARE,
 	};
 	return context;
 }
@@ -948,6 +978,19 @@ Camera *camera_load(const cJSON *json, Context *context)
 	return camera_new(position, vectors, fov, focal_length, context);
 }
 
+void camera_scale(Camera *camera, const Vec3 neg_shift, const float scale)
+{
+	sub3(camera->position, neg_shift, camera->position);
+	mul3(camera->position, scale, camera->position);
+	camera->focal_length *= scale;
+	Image *image = &camera->image;
+	mul2(image->size, scale, image->size);
+	sub3(image->corner, neg_shift, image->corner);
+	mul3(image->corner, scale, image->corner);
+	mul3(image->vectors[0], scale, image->vectors[0]);
+	mul3(image->vectors[1], scale, image->vectors[1]);
+}
+
 void save_image(FILE *file, const Image *image)
 {
 	err_assert(fprintf(file, "P6\n%d %d\n255\n", image->resolution[X], image->resolution[Y]) > 0, ERR_IO_WRITE_IMG);
@@ -982,6 +1025,12 @@ void light_load(const cJSON *json, Light *light)
 	cJSON_parse_float_array(json_intensity, intensity);
 
 	light_init(light, position, intensity);
+}
+
+void light_scale(Light *light, const Vec3 neg_shift, const float scale)
+{
+	sub3(light->position, neg_shift, light->position);
+	mul3(light->position, scale, light->position);
 }
 
 /*******************************************************************************
@@ -1112,22 +1161,13 @@ void bvh_generate(Context *context)
 #endif
 	}
 
-	BoundingCuboid *bounding_cuboid_scene = bvh_generate_bounding_cuboid_leaf(leaf_array, 0, num_leaves - 1);
-	Vec3 dimension_multiplier;
-	sub3(bounding_cuboid_scene->corners[1], bounding_cuboid_scene->corners[0], dimension_multiplier);
-	inv3(dimension_multiplier);
-
 	for (i = 0; i < num_leaves; i++) {
 		BoundingCuboid *bounding_cuboid = leaf_array[i].bvh->bounding_cuboid;
 		Vec3 norm_position;
 		add3(bounding_cuboid->corners[0], bounding_cuboid->corners[1], norm_position);
 		mul3(norm_position, .5f, norm_position);
-		sub3(norm_position, bounding_cuboid_scene->corners[0], norm_position);
-		mul3v(norm_position, dimension_multiplier, norm_position);
 		leaf_array[i].morton_code = morton_code(norm_position);
 	}
-
-	bounding_cuboid_delete(bounding_cuboid_scene);
 
 	qsort(leaf_array, num_leaves, sizeof(BVHWithMorton), &bvh_morton_code_compare);
 
@@ -1196,6 +1236,7 @@ bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance,
 	return false;
 }
 
+#ifdef DEBUG
 void bvh_print(const BVH *bvh, const uint32_t depth)
 {
 	uint32_t i;
@@ -1210,6 +1251,7 @@ void bvh_print(const BVH *bvh, const uint32_t depth)
 			bvh_print(bvh->children[j].bvh, depth + 1);
 	}
 }
+#endif
 
 /*******************************************************************************
 *	Material
@@ -1353,7 +1395,6 @@ Sphere *sphere_new(OBJECT_INIT_PARAMS, const Vec3 position, const float radius)
 	return sphere;
 }
 
-
 void sphere_delete(Object object)
 {
 	free(object.common);
@@ -1409,9 +1450,24 @@ BoundingCuboid *sphere_generate_bounding_cuboid(const Object object)
 {
 	Sphere *sphere = object.sphere;
 	Vec3 corners[2];
+	sphere_get_corners(object, corners);
+	return bounding_cuboid_new(sphere->epsilon, corners);
+}
+
+void sphere_get_corners(const Object object, Vec3 corners[2])
+{
+	Sphere *sphere = object.sphere;
 	sub3s(sphere->position, sphere->radius, corners[0]);
 	add3s(sphere->position, sphere->radius, corners[1]);
-	return bounding_cuboid_new(sphere->epsilon, corners);
+}
+
+void sphere_scale(const Object object, const Vec3 neg_shift, const float scale)
+{
+	Sphere *sphere = object.sphere;
+	sphere->epsilon *= scale;
+	sphere->radius *= scale;
+	sub3(sphere->position, neg_shift, sphere->position);
+	mul3(sphere->position, scale, sphere->position);
 }
 
 /*******************************************************************************
@@ -1485,6 +1541,13 @@ BoundingCuboid *triangle_generate_bounding_cuboid(const Object object)
 {
 	Triangle *triangle = object.triangle;
 	Vec3 corners[2];
+	triangle_get_corners(object, corners);
+	return bounding_cuboid_new(triangle->epsilon, corners);
+}
+
+void triangle_get_corners(const Object object, Vec3 corners[2])
+{
+	Triangle *triangle = object.triangle;
 	memcpy(corners[0], triangle->vertices[2], sizeof(Vec3));
 	memcpy(corners[1], triangle->vertices[2], sizeof(Vec3));
 	size_t i, j;
@@ -1495,7 +1558,19 @@ BoundingCuboid *triangle_generate_bounding_cuboid(const Object object)
 			else if (corners[1][j] < triangle->vertices[i][j])
 				corners[1][j] = triangle->vertices[i][j];
 		}
-	return bounding_cuboid_new(triangle->epsilon, corners);
+}
+
+void triangle_scale(const Object object, const Vec3 neg_shift, const float scale)
+{
+	Triangle *triangle = object.triangle;
+	triangle->epsilon *= scale;
+	size_t i;
+	for (i = 0; i < 3; i++) {
+		sub3(triangle->vertices[i], neg_shift, triangle->vertices[i]);
+		mul3(triangle->vertices[i], scale, triangle->vertices[i]);
+	}
+	for (i = 0; i < 2; i++)
+		mul3(triangle->edges[i], scale, triangle->edges[i]);
 }
 
 /*******************************************************************************
@@ -1566,6 +1641,22 @@ bool plane_intersects_in_range(const Object object, const Line *ray, float min_d
 		return false;
 	float distance = (plane->d - dot3(plane->normal, ray->position)) / dot3(plane->normal, ray->vector);
 	return distance > plane->epsilon && distance < min_distance;
+}
+
+void plane_scale(const Object object, const Vec3 neg_shift, const float scale)
+{
+	Plane *plane = object.plane;
+	Vec3 point = {1.f, 1.f, 1.f};
+	size_t i;
+	for (i = 0; i < 3; i++)
+		if (fabsf(plane->normal[i]) > plane->epsilon)
+			break;
+	point[i] = 0.f;
+	point[i] = (plane->d - dot3(point, plane->normal)) / plane->normal[i];
+	sub3(point, neg_shift, point);
+	mul3(point, scale, point);
+	plane->d = dot3(plane->normal, point);
+	plane->epsilon *= scale;
 }
 #endif /* UNBOUND_OBJECTS */
 
@@ -1869,6 +1960,42 @@ bool is_light_blocked(const Context *context, const Line *ray, const float dista
 #endif
 }
 
+//Places all objects in scene in cube of side length 1
+void normalize_scene(Context *context)
+{
+	Vec3 min = {FLT_MAX}, max = {FLT_MIN};
+	size_t i, j;
+	for (i = 0; i < context->num_objects; i++) {
+		Object object = context->objects[i];
+#ifdef UNBOUND_OBJECTS
+		if (object.common->object_data->is_bounded) {
+#endif
+			Vec3 corners[2];
+			object.common->object_data->get_corners(object, corners);
+			for (j = 0; j < 3; j++) {
+				if (corners[0][j] < min[j])
+					min[j] = corners[0][j];
+				if (corners[1][j] > max[j])
+					max[j] = corners[1][j];
+			}
+#ifdef UNBOUND_OBJECTS
+		}
+#endif
+	}
+
+	Vec3 range;
+	sub3(max, min, range);
+	float scale_factor = 1.f / max3(range);
+
+	for (i = 0; i < context->num_objects; i++)
+		context->objects[i].common->object_data->scale(context->objects[i], min, scale_factor);
+
+	for (i = 0; i < context->num_lights; i++)
+		light_scale(&context->lights[i], min, scale_factor);
+
+	camera_scale(context->camera, min, scale_factor);
+}
+
 void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t remaining_bounces, CommonObject *inside_object)
 {
 	Object closest_object;
@@ -1891,36 +2018,49 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	//LIGHTING MODEL
 	Vec3 obj_color;
 
-	Vec3 point;
-	mul3(ray->vector, min_distance, point);
-	add3(point, ray->position, point);
-
 	Material *material = object->material;
 
 	//emittance
 	memcpy(obj_color, material->ke, sizeof(Vec3));
 
-	//Line from point to light
-	Line light_ray;
-	memcpy(light_ray.position, point, sizeof(Vec3));
+	//Line originating at point of intersection
+	Line outgoing_ray;
+	mul3(ray->vector, min_distance, outgoing_ray.position);
+	add3(outgoing_ray.position, ray->position, outgoing_ray.position);
+
+	float b = dot3(normal, ray->vector);
+	bool is_outside = signbit(b);
 
 	size_t i;
 	for (i = 0; i < context->num_lights; i++) {
 		Light *light = &context->lights[i];
 
-		sub3(light->position, point, light_ray.vector);
-		float light_distance = mag3(light_ray.vector);
-		norm3(light_ray.vector);
+		sub3(light->position, outgoing_ray.position, outgoing_ray.vector);
+		float light_distance = mag3(outgoing_ray.vector);
+		mul3(outgoing_ray.vector, 1.f / light_distance, outgoing_ray.vector);
 
-		float a = dot3(light_ray.vector, normal);
+		float a = dot3(outgoing_ray.vector, normal);
 
-		Vec3 incoming_light_intensity = {1., 1., 1.};
-		if (object != inside_object
-			&& ! is_light_blocked(context, &light_ray, light_distance, incoming_light_intensity)) {
-			Vec3 intensity;
-			mul3v(incoming_light_intensity, light->intensity, intensity);
+		Vec3 incoming_light_intensity;
+		memcpy(incoming_light_intensity, light->intensity, sizeof(Vec3));
+		if (is_outside
+			&& !is_light_blocked(context, &outgoing_ray, light_distance, incoming_light_intensity)) {
+
+			Vec3 distance;
+			sub3(light->position, outgoing_ray.position, distance);
+			float light_attenuation;
+			switch (context->light_attenuation) {
+			case LIGHT_ATTENUATION_LINEAR:
+				light_attenuation = 1.f / (1.f + mag3(distance));
+				break;
+			case LIGHT_ATTENUATION_SQUARE:
+				light_attenuation = 1.f / (1.f + magsqr3(distance));
+				break;
+			}
+			mul3(incoming_light_intensity, light_attenuation, incoming_light_intensity);
+
 			Vec3 diffuse;
-			mul3v(material->kd, intensity, diffuse);
+			mul3v(material->kd, incoming_light_intensity, diffuse);
 			mul3(diffuse, fmaxf(0., a), diffuse);
 
 			Vec3 reflected;
@@ -1928,29 +2068,25 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			switch (context->reflection_model) {
 			case REFLECTION_PHONG:
 				mul3(normal, 2 * a, reflected);
-				sub3(reflected, light_ray.vector, reflected);
+				sub3(reflected, outgoing_ray.vector, reflected);
 				specular_mul = - dot3(reflected, ray->vector);
 				break;
 			case REFLECTION_BLINN:
-				mul3(light_ray.vector, -1.f, reflected);
+				mul3(outgoing_ray.vector, -1.f, reflected);
 				add3(reflected, ray->vector, reflected);
 				norm3(reflected);
 				specular_mul = - dot3(normal, reflected);
 				break;
 			}
 			Vec3 specular;
-			mul3v(material->ks, intensity, specular);
+			mul3v(material->ks, incoming_light_intensity, specular);
 			mul3(specular, fmaxf(0., powf(specular_mul, material->shininess)), specular);
 
 			add3_3(obj_color, diffuse, specular, obj_color);
 		}
 	}
 
-
-	float b = dot3(normal, ray->vector);
-	bool is_outside = signbit(b);
-
-	//ambient
+	//global illumination
 	switch (context->global_illumination_model) {
 	case GLOBAL_ILLUMINATION_AMBIENT:
 		mul3v(material->ka, context->global_ambient_light_intensity, obj_color);
@@ -1997,7 +2133,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			}
 
 			Vec3 light_mul;
-			for (size_t i = 0; i < num_samples; i++) {
+			for (i = 0; i < num_samples; i++) {
 				float inclination = acosf(rand_flt() * 2.f - 1.f);
 				float azimuth = rand_flt() * PI;
 				Vec3 apoint = {
@@ -2005,15 +2141,25 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 					sinf(azimuth) * sinf(inclination),
 					cosf(inclination),
 				};
-				mul3mat(rotation_matrix, apoint, light_ray.vector);
-				mul3(delta, dot3(normal, light_ray.vector), light_mul);
-				cast_ray(context, &light_ray, light_mul, obj_color, 0, NULL);
+				mul3mat(rotation_matrix, apoint, outgoing_ray.vector);
+				mul3(delta, dot3(normal, outgoing_ray.vector), light_mul);
+				cast_ray(context, &outgoing_ray, light_mul, obj_color, 0, NULL);
 			}
 		}
 		break;
 	}
 
 	mul3v(obj_color, kr, obj_color);
+	float light_attenuation;
+	switch (context->light_attenuation) {
+	case LIGHT_ATTENUATION_LINEAR:
+		light_attenuation = 1.f / (1.f + min_distance);
+		break;
+	case LIGHT_ATTENUATION_SQUARE:
+		light_attenuation = 1.f / sqr(1.f + min_distance);
+		break;
+	}
+	mul3(obj_color, light_attenuation, obj_color);
 	add3(color, obj_color, color);
 
 	if(!remaining_bounces)
@@ -2025,11 +2171,9 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		Vec3 reflected_kr;
 		mul3v(kr, material->kr, reflected_kr);
 		if (context->minimum_light_intensity_sqr < magsqr3(reflected_kr)) {
-			Line reflection_ray;
-			memcpy(reflection_ray.position, point, sizeof(Vec3));
-			mul3(normal, 2 * b, reflection_ray.vector);
-			sub3(ray->vector, reflection_ray.vector, reflection_ray.vector);
-			cast_ray(context, &reflection_ray, reflected_kr, color, remaining_bounces - 1, NULL);
+			mul3(normal, 2 * b, outgoing_ray.vector);
+			sub3(ray->vector, outgoing_ray.vector, outgoing_ray.vector);
+			cast_ray(context, &outgoing_ray, reflected_kr, color, remaining_bounces - 1, NULL);
 		}
 	}
 
@@ -2038,8 +2182,6 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		Vec3 refracted_kt;
 		mul3v(kr, material->kt, refracted_kt);
 		if (context->minimum_light_intensity_sqr < magsqr3(refracted_kt)) {
-			Line refraction_ray;
-			memcpy(refraction_ray.position, point, sizeof(Vec3));
 			float incident_angle = acosf(fabs(b));
 			float refractive_multiplier = is_outside ? 1.f / material->refractive_index : material->refractive_index;
 			float refracted_angle = asinf(sinf(incident_angle) * refractive_multiplier);
@@ -2052,9 +2194,9 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			cross(c, ray->vector, f);
 			mul3(ray->vector, cosf(delta_angle), g);
 			mul3(f, sinf(delta_angle), h);
-			add3(g, h, refraction_ray.vector);
-			norm3(refraction_ray.vector);
-			cast_ray(context, &refraction_ray, refracted_kt, color, remaining_bounces - 1, object);
+			add3(g, h, outgoing_ray.vector);
+			norm3(outgoing_ray.vector);
+			cast_ray(context, &outgoing_ray, refracted_kt, color, remaining_bounces - 1, object);
 		}
 	}
 }
@@ -2063,6 +2205,7 @@ void create_image(const Context *context)
 {
 	Vec3 kr = {1.f, 1.f, 1.f};
 	Camera *camera = context->camera;
+	Vec3 *raw_pixels = calloc(context->resolution[X] * context->resolution[Y], sizeof(Vec3));
 #ifdef MULTITHREADING
 #pragma omp parallel for
 #endif
@@ -2079,14 +2222,37 @@ void create_image(const Context *context)
 			Vec3 color = {0.f, 0.f, 0.f};
 			sub3(pixel_position, camera->position, ray.vector);
 			norm3(ray.vector);
-			cast_ray(context, &ray, kr, color, context->max_bounces, NULL);
-			mul3(color, 255., color);
-			uint8_t *pixel = camera->image.pixels[pixel_index];
-			pixel[0] = fmaxf(fminf(color[0], 255.), 0.);
-			pixel[1] = fmaxf(fminf(color[1], 255.), 0.);
-			pixel[2] = fmaxf(fminf(color[2], 255.), 0.);
+			cast_ray(context, &ray, kr, raw_pixels[pixel_index], context->max_bounces, NULL);
 			pixel_index++;
 		}
+	}
+
+	size_t image_size = camera->image.resolution[Y] * camera->image.resolution[X];
+	size_t i;
+	if (context->normalize_colors) {
+		float min = FLT_MAX, max = FLT_MIN;
+		for (i = 0; i < image_size; i++) {
+			float *raw_pixel = raw_pixels[i];
+			float pixel_min = min3(raw_pixel), pixel_max = max3(raw_pixel);
+			if (pixel_min < min)
+				min = pixel_min;
+			if (pixel_max > max)
+				max = pixel_max;
+		}
+
+		float slope = 1.f / (max - min);
+
+		for (i = 0; i < image_size; i++) {
+			sub3s(raw_pixels[i], min, raw_pixels[i]);
+			mul3(raw_pixels[i], slope, raw_pixels[i]);
+		}
+	}
+
+	for (i = 0; i < image_size; i++) {
+		uint8_t *pixel = camera->image.pixels[i];
+		pixel[0] = (uint8_t)fmaxf(fminf(raw_pixels[i][0] * 255.f, 255.f), 0.f);
+		pixel[1] = (uint8_t)fmaxf(fminf(raw_pixels[i][1] * 255.f, 255.f), 0.f);
+		pixel[2] = (uint8_t)fmaxf(fminf(raw_pixels[i][2] * 255.f, 255.f), 0.f);
 	}
 }
 
@@ -2164,6 +2330,22 @@ void process_arguments(int argc, char *argv[], Context *context)
 			case 5859046://-n
 				context->samples_per_pixel = abs(atoi(argv[i + 1]));
 				break;
+			case 5859051://-c
+				context->normalize_colors = true;
+				i--;
+				break;
+			case 5859044://-l
+				switch (djb_hash(argv[i + 1])) {
+				case 193412846://lin
+					context->light_attenuation = LIGHT_ATTENUATION_LINEAR;
+					break;
+				case 193433013://sqr
+					context->light_attenuation = LIGHT_ATTENUATION_SQUARE;
+					break;
+				default:
+					err(ERR_ARGV_LIGHT_ATTENUATION);
+				}
+				break;
 			default:
 				err(ERR_ARGV_UNRECOGNIZED);
 		}
@@ -2191,6 +2373,7 @@ int main(int argc, char *argv[])
 	scene_load(context);
 	fclose(context->scene_file);
 	context->scene_file = NULL;
+	normalize_scene(context);
 	bvh_generate(context);
 
 	PRINT_TIME("INITIALIZED SCENE. BEGAN RENDERING.");

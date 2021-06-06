@@ -16,11 +16,15 @@
 
 /*
 * TODO:
-*	Treat emittant objects as lights
-*	Optimize speed by considering LOD
-* 	Change naming of algorithm functions
-* 	Denoising
-* 	Remove point lights
+*	Lighting:
+*		Treat emittant objects as lights
+*		Remove point lights
+*	Textures:
+*		Create procedural textures
+*	Optimization:
+*		Consider LOD
+*	Other:
+* 		Denoising
 */
 
 #include <float.h>
@@ -438,18 +442,18 @@ float mag3(const Vec3 vec);
 float dot2(const Vec2 vec1, const Vec2 vec2);
 float dot3(const Vec3 vec1, const Vec3 vec2);
 void cross(const Vec3 vec1, const Vec3 vec2, Vec3 result);
-void mul2(const Vec2 vec, const float mul, Vec2 result);
-void mul3(const Vec3 vec, const float mul, Vec3 result);
+void mul2s(const Vec2 vec, const float mul, Vec2 result);
+void mul3s(const Vec3 vec, const float mul, Vec3 result);
 void mul3v(const Vec3 vec1, const Vec3 vec2, Vec3 result);
 void inv3(Vec3 vec);
-void add2(const Vec2 vec1, const Vec2 vec2, Vec2 result);
+void add2v(const Vec2 vec1, const Vec2 vec2, Vec2 result);
 void add2s(const Vec2 vec1, const float summand, Vec2 result);
-void add3(const Vec3 vec1, const Vec3 vec2, Vec3 result);
+void add3v(const Vec3 vec1, const Vec3 vec2, Vec3 result);
 void add3s(const Vec3 vec1, const float summand, Vec3 result);
-void add3_3(const Vec3 vec1, const Vec3 vec2, const Vec3 vec3, Vec3 result);
-void sub2(const Vec2 vec1, const Vec2 vec2, Vec2 result);
+void add3v3(const Vec3 vec1, const Vec3 vec2, const Vec3 vec3, Vec3 result);
+void sub2v(const Vec2 vec1, const Vec2 vec2, Vec2 result);
 void sub2s(const Vec2 vec1, const float subtrahend, Vec2 result);
-void sub3(const Vec3 vec1, const Vec3 vec2, Vec3 result);
+void sub3v(const Vec3 vec1, const Vec3 vec2, Vec3 result);
 void sub3s(const Vec3 vec1, const float subtrahend, Vec3 result);
 void norm2(Vec2 vec);
 void norm3(Vec3 vec);
@@ -458,9 +462,8 @@ float min3(const Vec3 vec);
 float clamp(const float num, const float min, const float max);
 void clamp3(const Vec3 vec, const Vec3 min, const Vec3 max, Vec3 result);
 float magsqr3(const Vec3 vec);
-void mul3mat(Mat3 mat, const float *restrict vec, float *restrict result);
-void mulmat(Mat3 mat, const float mul, Mat3 result);
-void mulmat(Mat3 mat, const float mul, Mat3 result);
+void mulm3(Mat3 mat, const float *restrict vec, float *restrict result);
+void mulms(Mat3 mat, const float mul, Mat3 result);
 float rand_flt(void);
 bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 bool line_intersects_sphere(const Vec3 sphere_position, const float sphere_radius, const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
@@ -641,13 +644,13 @@ void cross(const Vec3 vec1, const Vec3 vec2, Vec3 result)
 	result[Z] = vec1[X] * vec2[Y] - vec1[Y] * vec2[X];
 }
 
-void mul2(const Vec2 vec, const float mul, Vec2 result)
+void mul2s(const Vec2 vec, const float mul, Vec2 result)
 {
 	result[X] = vec[X] * mul;
 	result[Y] = vec[Y] * mul;
 }
 
-void mul3(const Vec3 vec, const float mul, Vec3 result)
+void mul3s(const Vec3 vec, const float mul, Vec3 result)
 {
 	result[X] = vec[X] * mul;
 	result[Y] = vec[Y] * mul;
@@ -668,7 +671,7 @@ void inv3(Vec3 vec)
 	vec[Z] = 1.f / vec[Z];
 }
 
-void add2(const Vec2 vec1, const Vec2 vec2, Vec2 result)
+void add2v(const Vec2 vec1, const Vec2 vec2, Vec2 result)
 {
 	result[X] = vec1[X] + vec2[X];
 	result[Y] = vec1[Y] + vec2[Y];
@@ -680,7 +683,7 @@ void add2s(const Vec2 vec1, const float summand, Vec2 result)
 	result[Y] = vec1[Y] + summand;
 }
 
-void add3(const Vec3 vec1, const Vec3 vec2, Vec3 result)
+void add3v(const Vec3 vec1, const Vec3 vec2, Vec3 result)
 {
 	result[X] = vec1[X] + vec2[X];
 	result[Y] = vec1[Y] + vec2[Y];
@@ -694,14 +697,14 @@ void add3s(const Vec3 vec1, const float summand, Vec3 result)
 	result[Z] = vec1[Z] + summand;
 }
 
-void add3_3(const Vec3 vec1, const Vec3 vec2, const Vec3 vec3, Vec3 result)
+void add3v3(const Vec3 vec1, const Vec3 vec2, const Vec3 vec3, Vec3 result)
 {
 	result[X] = vec1[X] + vec2[X] + vec3[X];
 	result[Y] = vec1[Y] + vec2[Y] + vec3[Y];
 	result[Z] = vec1[Z] + vec2[Z] + vec3[Z];
 }
 
-void sub2(const Vec2 vec1, const Vec2 vec2, Vec2 result)
+void sub2v(const Vec2 vec1, const Vec2 vec2, Vec2 result)
 {
 	result[X] = vec1[X] - vec2[X];
 	result[Y] = vec1[Y] - vec2[Y];
@@ -713,7 +716,7 @@ void sub2s(const Vec2 vec1, const float subtrahend, Vec2 result)
 	result[Y] = vec1[Y] - subtrahend;
 }
 
-void sub3(const Vec3 vec1, const Vec3 vec2, Vec3 result)
+void sub3v(const Vec3 vec1, const Vec3 vec2, Vec3 result)
 {
 	result[X] = vec1[X] - vec2[X];
 	result[Y] = vec1[Y] - vec2[Y];
@@ -729,12 +732,12 @@ void sub3s(const Vec3 vec1, const float subtrahend, Vec3 result)
 
 void norm2(Vec2 vec)
 {
-	mul2(vec, 1.f / mag2(vec), vec);
+	mul2s(vec, 1.f / mag2(vec), vec);
 }
 
 void norm3(Vec3 vec)
 {
-	mul3(vec, 1.f / mag3(vec), vec);
+	mul3s(vec, 1.f / mag3(vec), vec);
 }
 
 __attribute__((const))
@@ -779,25 +782,25 @@ float magsqr3(const Vec3 vec)
 	return sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]);
 }
 
-void mul3mat(Mat3 mat, const float *restrict vec, float *restrict result)
+void mulm3(Mat3 mat, const float *restrict vec, float *restrict result)
 {
 	result[X] = dot3(mat[X], vec);
 	result[Y] = dot3(mat[Y], vec);
 	result[Z] = dot3(mat[Z], vec);
 }
 
-void mulmat(Mat3 mat, const float mul, Mat3 result)
+void mulms(Mat3 mat, const float mul, Mat3 result)
 {
-	mul3(mat[X], mul, result[X]);
-	mul3(mat[Y], mul, result[Y]);
-	mul3(mat[Z], mul, result[Z]);
+	mul3s(mat[X], mul, result[X]);
+	mul3s(mat[Y], mul, result[Y]);
+	mul3s(mat[Z], mul, result[Z]);
 }
 
 void addmat(Mat3 mat1, Mat3 mat2, Mat3 result)
 {
-	add3(mat1[X], mat2[X], result[X]);
-	add3(mat1[Y], mat2[Y], result[Y]);
-	add3(mat1[Z], mat2[Z], result[Z]);
+	add3v(mat1[X], mat2[X], result[X]);
+	add3v(mat1[Y], mat2[Y], result[Y]);
+	add3v(mat1[Z], mat2[Z], result[Z]);
 }
 
 float rand_flt(void)
@@ -814,7 +817,7 @@ bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position,
 	if (a < epsilon && a > -epsilon) //ray is parallel to line
 		return false;
 	float f = 1.f / a;
-	sub3(line_position, vertex, s);
+	sub3v(line_position, vertex, s);
 	float u = f * dot3(s, h);
 	if (u < 0.f || u > 1.f)
 		return false;
@@ -829,7 +832,7 @@ bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position,
 bool line_intersects_sphere(const Vec3 sphere_position, const float sphere_radius, const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance)
 {
 	Vec3 relative_position;
-	sub3(line_position, sphere_position, relative_position);
+	sub3v(line_position, sphere_position, relative_position);
 	float b = -2 * dot3(line_vector, relative_position);
 	float c = dot3(relative_position, relative_position) - sqr(sphere_radius);
 	float determinant = sqr(b) - 4 * c;
@@ -929,13 +932,13 @@ Camera *camera_new(const Vec3 position, Vec3 vectors[2], const float fov, const 
 	camera->image.pixels = malloc(context->resolution[X] * context->resolution[Y] * sizeof(Color));
 
 	Vec3 focal_vector, plane_center, corner_offset_vectors[2];
-	mul3(camera->vectors[2], camera->focal_length, focal_vector);
-	add3(focal_vector, camera->position, plane_center);
-	mul3(camera->vectors[0], camera->image.size[X] / camera->image.resolution[X], camera->image.vectors[0]);
-	mul3(camera->vectors[1], camera->image.size[Y] / camera->image.resolution[Y], camera->image.vectors[1]);
-	mul3(camera->image.vectors[X], .5f - camera->image.resolution[X] / 2.f, corner_offset_vectors[X]);
-	mul3(camera->image.vectors[Y], .5f - camera->image.resolution[Y] / 2.f, corner_offset_vectors[Y]);
-	add3_3(plane_center, corner_offset_vectors[X], corner_offset_vectors[Y], camera->image.corner);
+	mul3s(camera->vectors[2], camera->focal_length, focal_vector);
+	add3v(focal_vector, camera->position, plane_center);
+	mul3s(camera->vectors[0], camera->image.size[X] / camera->image.resolution[X], camera->image.vectors[0]);
+	mul3s(camera->vectors[1], camera->image.size[Y] / camera->image.resolution[Y], camera->image.vectors[1]);
+	mul3s(camera->image.vectors[X], .5f - camera->image.resolution[X] / 2.f, corner_offset_vectors[X]);
+	mul3s(camera->image.vectors[Y], .5f - camera->image.resolution[Y] / 2.f, corner_offset_vectors[Y]);
+	add3v3(plane_center, corner_offset_vectors[X], corner_offset_vectors[Y], camera->image.corner);
 
 	return camera;
 }
@@ -980,15 +983,15 @@ Camera *camera_load(const cJSON *json, Context *context)
 
 void camera_scale(Camera *camera, const Vec3 neg_shift, const float scale)
 {
-	sub3(camera->position, neg_shift, camera->position);
-	mul3(camera->position, scale, camera->position);
+	sub3v(camera->position, neg_shift, camera->position);
+	mul3s(camera->position, scale, camera->position);
 	camera->focal_length *= scale;
 	Image *image = &camera->image;
-	mul2(image->size, scale, image->size);
-	sub3(image->corner, neg_shift, image->corner);
-	mul3(image->corner, scale, image->corner);
-	mul3(image->vectors[0], scale, image->vectors[0]);
-	mul3(image->vectors[1], scale, image->vectors[1]);
+	mul2s(image->size, scale, image->size);
+	sub3v(image->corner, neg_shift, image->corner);
+	mul3s(image->corner, scale, image->corner);
+	mul3s(image->vectors[0], scale, image->vectors[0]);
+	mul3s(image->vectors[1], scale, image->vectors[1]);
 }
 
 void save_image(FILE *file, const Image *image)
@@ -1029,8 +1032,8 @@ void light_load(const cJSON *json, Light *light)
 
 void light_scale(Light *light, const Vec3 neg_shift, const float scale)
 {
-	sub3(light->position, neg_shift, light->position);
-	mul3(light->position, scale, light->position);
+	sub3v(light->position, neg_shift, light->position);
+	mul3s(light->position, scale, light->position);
 }
 
 /*******************************************************************************
@@ -1164,8 +1167,8 @@ void bvh_generate(Context *context)
 	for (i = 0; i < num_leaves; i++) {
 		BoundingCuboid *bounding_cuboid = leaf_array[i].bvh->bounding_cuboid;
 		Vec3 norm_position;
-		add3(bounding_cuboid->corners[0], bounding_cuboid->corners[1], norm_position);
-		mul3(norm_position, .5f, norm_position);
+		add3v(bounding_cuboid->corners[0], bounding_cuboid->corners[1], norm_position);
+		mul3s(norm_position, .5f, norm_position);
 		leaf_array[i].morton_code = morton_code(norm_position);
 	}
 
@@ -1427,10 +1430,10 @@ bool sphere_get_intersection(const Object object, const Line *ray, float *distan
 {
 	Sphere *sphere = object.sphere;
 	if (line_intersects_sphere(sphere->position, sphere->radius, ray->position, ray->vector, sphere->epsilon, distance)) {
-			mul3(ray->vector, *distance, normal);
-			add3(normal, ray->position, normal);
-			sub3(normal, sphere->position, normal);
-			mul3(normal, 1.f / sphere->radius, normal);
+			mul3s(ray->vector, *distance, normal);
+			add3v(normal, ray->position, normal);
+			sub3v(normal, sphere->position, normal);
+			mul3s(normal, 1.f / sphere->radius, normal);
 			return true;
 		}
 	return false;
@@ -1466,8 +1469,8 @@ void sphere_scale(const Object object, const Vec3 neg_shift, const float scale)
 	Sphere *sphere = object.sphere;
 	sphere->epsilon *= scale;
 	sphere->radius *= scale;
-	sub3(sphere->position, neg_shift, sphere->position);
-	mul3(sphere->position, scale, sphere->position);
+	sub3v(sphere->position, neg_shift, sphere->position);
+	mul3s(sphere->position, scale, sphere->position);
 }
 
 /*******************************************************************************
@@ -1478,8 +1481,8 @@ Triangle *triangle_new(OBJECT_INIT_PARAMS, Vec3 vertices[3])
 {
 	OBJECT_NEW(Triangle, triangle, OBJECT_TRIANGLE);
 	memcpy(triangle->vertices, vertices, sizeof(Vec3[3]));
-	sub3(vertices[1], vertices[0], triangle->edges[0]);
-	sub3(vertices[2], vertices[0], triangle->edges[1]);
+	sub3v(vertices[1], vertices[0], triangle->edges[0]);
+	sub3v(vertices[2], vertices[0], triangle->edges[1]);
 	cross(triangle->edges[0], triangle->edges[1], triangle->normal);
 	norm3(triangle->normal);
 
@@ -1566,11 +1569,11 @@ void triangle_scale(const Object object, const Vec3 neg_shift, const float scale
 	triangle->epsilon *= scale;
 	size_t i;
 	for (i = 0; i < 3; i++) {
-		sub3(triangle->vertices[i], neg_shift, triangle->vertices[i]);
-		mul3(triangle->vertices[i], scale, triangle->vertices[i]);
+		sub3v(triangle->vertices[i], neg_shift, triangle->vertices[i]);
+		mul3s(triangle->vertices[i], scale, triangle->vertices[i]);
 	}
 	for (i = 0; i < 2; i++)
-		mul3(triangle->edges[i], scale, triangle->edges[i]);
+		mul3s(triangle->edges[i], scale, triangle->edges[i]);
 }
 
 /*******************************************************************************
@@ -1627,7 +1630,7 @@ bool plane_get_intersection(const Object object, const Line *ray, float *distanc
 		if (signbit(a))
 			memcpy(normal, plane->normal, sizeof(Vec3));
 		else
-			mul3(plane->normal, -1.f, normal);
+			mul3s(plane->normal, -1.f, normal);
 		return true;
 	}
 	return false;
@@ -1653,8 +1656,8 @@ void plane_scale(const Object object, const Vec3 neg_shift, const float scale)
 			break;
 	point[i] = 0.f;
 	point[i] = (plane->d - dot3(point, plane->normal)) / plane->normal[i];
-	sub3(point, neg_shift, point);
-	mul3(point, scale, point);
+	sub3v(point, neg_shift, point);
+	mul3s(point, scale, point);
 	plane->d = dot3(plane->normal, point);
 	plane->epsilon *= scale;
 }
@@ -1743,9 +1746,9 @@ void stl_load_objects(OBJECT_INIT_PARAMS, Context *context, FILE *file, const Ve
 		uint32_t j;
 		for (j = 0; j < 3; j++) {
 			Vec3 temp_vertices;
-			mul3mat(rotation_matrix, stl_triangle.vertices[j], temp_vertices);
-			mul3(temp_vertices, scale, stl_triangle.vertices[j]);
-			add3(stl_triangle.vertices[j], position, stl_triangle.vertices[j]);
+			mulm3(rotation_matrix, stl_triangle.vertices[j], temp_vertices);
+			mul3s(temp_vertices, scale, stl_triangle.vertices[j]);
+			add3v(stl_triangle.vertices[j], position, stl_triangle.vertices[j]);
 		}
 		Object object;
 		object.triangle = triangle_new(OBJECT_INIT_VARS, stl_triangle.vertices);
@@ -1984,7 +1987,7 @@ void normalize_scene(Context *context)
 	}
 
 	Vec3 range;
-	sub3(max, min, range);
+	sub3v(max, min, range);
 	float scale_factor = 1.f / max3(range);
 
 	for (i = 0; i < context->num_objects; i++)
@@ -2025,8 +2028,8 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 
 	//Line originating at point of intersection
 	Line outgoing_ray;
-	mul3(ray->vector, min_distance, outgoing_ray.position);
-	add3(outgoing_ray.position, ray->position, outgoing_ray.position);
+	mul3s(ray->vector, min_distance, outgoing_ray.position);
+	add3v(outgoing_ray.position, ray->position, outgoing_ray.position);
 
 	float b = dot3(normal, ray->vector);
 	bool is_outside = signbit(b);
@@ -2035,9 +2038,9 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	for (i = 0; i < context->num_lights; i++) {
 		Light *light = &context->lights[i];
 
-		sub3(light->position, outgoing_ray.position, outgoing_ray.vector);
+		sub3v(light->position, outgoing_ray.position, outgoing_ray.vector);
 		float light_distance = mag3(outgoing_ray.vector);
-		mul3(outgoing_ray.vector, 1.f / light_distance, outgoing_ray.vector);
+		mul3s(outgoing_ray.vector, 1.f / light_distance, outgoing_ray.vector);
 
 		float a = dot3(outgoing_ray.vector, normal);
 
@@ -2047,7 +2050,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			&& !is_light_blocked(context, &outgoing_ray, light_distance, incoming_light_intensity)) {
 
 			Vec3 distance;
-			sub3(light->position, outgoing_ray.position, distance);
+			sub3v(light->position, outgoing_ray.position, distance);
 			float light_attenuation;
 			switch (context->light_attenuation) {
 			case LIGHT_ATTENUATION_LINEAR:
@@ -2057,32 +2060,32 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 				light_attenuation = 1.f / (1.f + magsqr3(distance));
 				break;
 			}
-			mul3(incoming_light_intensity, light_attenuation, incoming_light_intensity);
+			mul3s(incoming_light_intensity, light_attenuation, incoming_light_intensity);
 
 			Vec3 diffuse;
 			mul3v(material->kd, incoming_light_intensity, diffuse);
-			mul3(diffuse, fmaxf(0., a), diffuse);
+			mul3s(diffuse, fmaxf(0., a), diffuse);
 
 			Vec3 reflected;
 			float specular_mul;
 			switch (context->reflection_model) {
 			case REFLECTION_PHONG:
-				mul3(normal, 2 * a, reflected);
-				sub3(reflected, outgoing_ray.vector, reflected);
+				mul3s(normal, 2 * a, reflected);
+				sub3v(reflected, outgoing_ray.vector, reflected);
 				specular_mul = - dot3(reflected, ray->vector);
 				break;
 			case REFLECTION_BLINN:
-				mul3(outgoing_ray.vector, -1.f, reflected);
-				add3(reflected, ray->vector, reflected);
+				mul3s(outgoing_ray.vector, -1.f, reflected);
+				add3v(reflected, ray->vector, reflected);
 				norm3(reflected);
 				specular_mul = - dot3(normal, reflected);
 				break;
 			}
 			Vec3 specular;
 			mul3v(material->ks, incoming_light_intensity, specular);
-			mul3(specular, fmaxf(0., powf(specular_mul, material->shininess)), specular);
+			mul3s(specular, fmaxf(0., powf(specular_mul, material->shininess)), specular);
 
-			add3_3(obj_color, diffuse, specular, obj_color);
+			add3v3(obj_color, diffuse, specular, obj_color);
 		}
 	}
 
@@ -2127,7 +2130,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			size_t num_samples;
 			if (remaining_bounces == context->max_bounces) {
 				num_samples = context->samples_per_pixel;
-				mul3(delta, 1.f / (float)num_samples, delta);
+				mul3s(delta, 1.f / (float)num_samples, delta);
 			} else {
 				num_samples = 1;
 			}
@@ -2141,8 +2144,8 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 					sinf(azimuth) * sinf(inclination),
 					cosf(inclination),
 				};
-				mul3mat(rotation_matrix, apoint, outgoing_ray.vector);
-				mul3(delta, dot3(normal, outgoing_ray.vector), light_mul);
+				mulm3(rotation_matrix, apoint, outgoing_ray.vector);
+				mul3s(delta, dot3(normal, outgoing_ray.vector), light_mul);
 				cast_ray(context, &outgoing_ray, light_mul, obj_color, 0, NULL);
 			}
 		}
@@ -2159,8 +2162,8 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		light_attenuation = 1.f / sqr(1.f + min_distance);
 		break;
 	}
-	mul3(obj_color, light_attenuation, obj_color);
-	add3(color, obj_color, color);
+	mul3s(obj_color, light_attenuation, obj_color);
+	add3v(color, obj_color, color);
 
 	if(!remaining_bounces)
 		return;
@@ -2171,8 +2174,8 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 		Vec3 reflected_kr;
 		mul3v(kr, material->kr, reflected_kr);
 		if (context->minimum_light_intensity_sqr < magsqr3(reflected_kr)) {
-			mul3(normal, 2 * b, outgoing_ray.vector);
-			sub3(ray->vector, outgoing_ray.vector, outgoing_ray.vector);
+			mul3s(normal, 2 * b, outgoing_ray.vector);
+			sub3v(ray->vector, outgoing_ray.vector, outgoing_ray.vector);
 			cast_ray(context, &outgoing_ray, reflected_kr, color, remaining_bounces - 1, NULL);
 		}
 	}
@@ -2190,11 +2193,11 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			cross(ray->vector, normal, c);
 			norm3(c);
 			if (!is_outside)
-				mul3(c, -1.f, c);
+				mul3s(c, -1.f, c);
 			cross(c, ray->vector, f);
-			mul3(ray->vector, cosf(delta_angle), g);
-			mul3(f, sinf(delta_angle), h);
-			add3(g, h, outgoing_ray.vector);
+			mul3s(ray->vector, cosf(delta_angle), g);
+			mul3s(f, sinf(delta_angle), h);
+			add3v(g, h, outgoing_ray.vector);
 			norm3(outgoing_ray.vector);
 			cast_ray(context, &outgoing_ray, refracted_kt, color, remaining_bounces - 1, object);
 		}
@@ -2211,16 +2214,15 @@ void create_image(const Context *context)
 #endif
 	for (uint32_t row = 0; row < camera->image.resolution[Y]; row++) {
 		Vec3 pixel_position;
-		mul3(camera->image.vectors[Y], row, pixel_position);
-		add3(pixel_position, camera->image.corner, pixel_position);
+		mul3s(camera->image.vectors[Y], row, pixel_position);
+		add3v(pixel_position, camera->image.corner, pixel_position);
 		Line ray;
 		memcpy(ray.position, camera->position, sizeof(Vec3));
 		uint32_t pixel_index = camera->image.resolution[X] * row;
 		uint32_t col;
 		for (col = 0; col < camera->image.resolution[X]; col++) {
-			add3(pixel_position, camera->image.vectors[X], pixel_position);
-			Vec3 color = {0.f, 0.f, 0.f};
-			sub3(pixel_position, camera->position, ray.vector);
+			add3v(pixel_position, camera->image.vectors[X], pixel_position);
+			sub3v(pixel_position, camera->position, ray.vector);
 			norm3(ray.vector);
 			cast_ray(context, &ray, kr, raw_pixels[pixel_index], context->max_bounces, NULL);
 			pixel_index++;
@@ -2244,7 +2246,7 @@ void create_image(const Context *context)
 
 		for (i = 0; i < image_size; i++) {
 			sub3s(raw_pixels[i], min, raw_pixels[i]);
-			mul3(raw_pixels[i], slope, raw_pixels[i]);
+			mul3s(raw_pixels[i], slope, raw_pixels[i]);
 		}
 	}
 

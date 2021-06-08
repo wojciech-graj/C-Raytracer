@@ -1,6 +1,13 @@
 # Raytracing Engine
 
-This is a program which can generate an image using a realistic simulation of light rays and their interactions with various objects resulting in shadows, reflection, and refraction.
+This is a program which can generate an image using a relatively realistic simulation of light rays and their interactions with various objects.
+
+#### Features
+- Shadows
+- Reflection
+- Refraction
+- Global illumination
+- Procedural textures
 
 ## Table of Contents
 [Build](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#Build)\

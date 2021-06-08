@@ -6,7 +6,6 @@
 * 	cJSON (https://github.com/DaveGamble/cJSON)
 *	SimplexNoise (https://github.com/SRombauts/SimplexNoise)
 * Setting macros:
-*	PRINT_TIME - prints status messages with timestamps
 * 	MULTITHREADING - enables multithreading
 * 	UNBOUND_OBJECTS - allows for unbound objects such as planes
 *
@@ -27,10 +26,9 @@
 *		Consider LOD
 *	Other:
 * 		Denoising
-*		CLI params
-*		time printing
 *		Documentation
 *		Port scenes to new format
+*		Update readme
 */
 
 #include <float.h>
@@ -48,14 +46,6 @@
 /*******************************************************************************
 *	MACRO
 *******************************************************************************/
-
-#ifdef DISPLAY_TIME
-#define PRINT_TIME(msg)\
-	timespec_get(&current_t, TIME_UTC);\
-	printf("[%07.3f] %s\n", (current_t.tv_sec - start_t.tv_sec) + (current_t.tv_nsec - start_t.tv_nsec) * 1e-9, msg);
-#else
-#define PRINT_TIME(format)
-#endif
 
 #ifdef MULTITHREADING
 #include <omp.h>
@@ -142,9 +132,16 @@ typedef enum {
 } GlobalIlluminationModel;
 
 typedef enum {
+	LIGHT_ATTENUATION_NONE,
 	LIGHT_ATTENUATION_LINEAR,
 	LIGHT_ATTENUATION_SQUARE,
 } LightAttenuation;
+
+typedef enum {
+	LOG_NONE,
+	LOG_REALTIME,
+	LOG_CPUTIME,
+} LogOption;
 
 /* Object */
 typedef enum {
@@ -239,27 +236,24 @@ const char *ERR_MESSAGES[ERR_END] = {
 const char *HELPTEXT = "\
 Renders a scene using raytracing.\n\
 \n\
-REQUIRED PARAMS:\n\
---file       [-f] (string)            : specifies the scene file which will be used to generate the image. Example files can be found in scenes/\n\
---output     [-o] (string)            : specifies the file to which the image will be saved. Must end in .ppm\n\
---resolution [-r] (integer) (integer) : specifies the resolution of the output image\n\
-OPTIONAL PARAMS:\n\
--m (integer)   : DEFAULT = 1       : specifies the number of CPU cores\n\
-	(integer)  : allocates (integer) amount of CPU cores\n\
-	max        : allocates the maximum number of cores\n\
--b (integer)   : DEFAULT = 10      : specifies the maximum number of times that a light ray can bounce. Large values: (integer) > 100 may cause stack overflows\n\
--a (float)     : DEFAULT = 0.01    : specifies the minimum light intensity for which a ray is cast\n\
--s (string)    : DEFAULT = phong   : specifies the reflection model\n\
-	phong      : phong reflection model\n\
-	blinn      : blinn-phong reflection model\n\
--g (string)    : DEFAULT = ambient : specifies the global illumination model\n\
-	ambient    : ambient lighting\n\
-	path       : path-tracing\n\
--n (integer)   : DEFAULT = 1       : specifies the number of samples which are rendered per pixel\n\
--c             : DEFAULT = OFF     : normalizes values of pixels so that entire color spectrum is utilized\n\
--a (string)    : DEFAULT = sqr     : specifies how light should be attenuated\n\
-	lin        : inverse linear\n\
-	sqr        : inverse square\n";
+./engine <input> <output> <resolution> [OPTIONAL_PARAMETERS]\n\
+\n\
+REQUIRED PARAMETERS:\n\
+<input>      (string)            : .json scene file which will be used to generate the image. Example files can be found in scenes.\n\
+<output>     (string)            : .ppm file to which the image will be saved.\n\
+<resolution> (integer) (integer) : resolution of the output image.\n\
+OPTIONAL PARAMETERS:\n\
+[-m] (integer | \"max\")           : DEFAULT = 1       : number of CPU cores\n\
+[-b] (integer)                   : DEFAULT = 10      : maximum number of times that a light ray can bounce.\n\
+[-a] (float)                     : DEFAULT = 0.01    : minimum light intensity for which a ray is cast\n\
+[-s] (\"phong\" | \"blinn\")         : DEFAULT = phong   : reflection model\n\
+[-n] (integer)                   : DEFAULT = 1       : number of samples which are rendered per pixel\n\
+[-c]                             : DEFAULT = OFF     : normalize values of pixels so that entire color spectrum is utilized\n\
+[-l] (\"none\" | \"lin\" | \"sqr\")    : DEFAULT = sqr     : light attenuation\n\
+[-p] (\"none\" | \"real\" | \"cpu\")   : DEFAULT = real    : time to print with status messages\n\
+[-g] (string)                    : DEFAULT = ambient : global illumination model\n\
+    ambient    : ambient lighting\n\
+    path       : path-tracing\n";
 
 /*******************************************************************************
 *	STRUCTURE DEFINITION
@@ -283,11 +277,15 @@ typedef struct Context {
 	Camera *camera;
 	BVH *bvh;
 
+	struct timespec start_timespec;
+	clock_t start_clock;
+
 	Vec3 global_ambient_light_intensity;
 	uint32_t max_bounces;
 	float minimum_light_intensity_sqr;
 	ReflectionModel reflection_model;
 	GlobalIlluminationModel global_illumination_model;
+	LogOption log_option;
 	uint32_t resolution[2];
 	size_t samples_per_pixel;
 	bool normalize_colors;
@@ -574,6 +572,7 @@ void normalize_scene(Context *context);
 void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t bounce_count, Object *inside_object);
 void create_image(const Context *context);
 void process_arguments(int argc, char *argv[], Context *context);
+void log_msg(const Context *context, const char *msg);
 int main(int argc, char *argv[]);
 
 /* ObjectData */
@@ -895,11 +894,13 @@ Context *context_new(void)
 			.minimum_light_intensity_sqr = .01f * .01f,
 			.global_illumination_model = GLOBAL_ILLUMINATION_AMBIENT,
 			.reflection_model = REFLECTION_PHONG,
+			.log_option = LOG_REALTIME,
 			.samples_per_pixel = 1,
-			.resolution = {600, 400},
 			.normalize_colors = false,
 			.light_attenuation = LIGHT_ATTENUATION_SQUARE,
 	};
+	timespec_get(&context->start_timespec, TIME_UTC);
+	context->start_clock = clock();
 	return context;
 }
 
@@ -2156,16 +2157,16 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 
 			Vec3 distance;
 			sub3v(light->position, outgoing_ray.position, distance);
-			float light_attenuation;
 			switch (context->light_attenuation) {
+			case LIGHT_ATTENUATION_NONE:
+				break;
 			case LIGHT_ATTENUATION_LINEAR:
-				light_attenuation = 1.f / (1.f + mag3(distance));
+				mul3s(incoming_light_intensity, 1.f / (1.f + mag3(distance)), incoming_light_intensity);
 				break;
 			case LIGHT_ATTENUATION_SQUARE:
-				light_attenuation = 1.f / (1.f + magsqr3(distance));
+				mul3s(incoming_light_intensity, 1.f / (1.f + magsqr3(distance)), incoming_light_intensity);
 				break;
 			}
-			mul3s(incoming_light_intensity, light_attenuation, incoming_light_intensity);
 
 			Vec3 diffuse;
 			material->texture->get_color(material->texture, outgoing_ray.position, diffuse);
@@ -2259,16 +2260,16 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	}
 
 	mul3v(obj_color, kr, obj_color);
-	float light_attenuation;
 	switch (context->light_attenuation) {
+	case LIGHT_ATTENUATION_NONE:
+		break;
 	case LIGHT_ATTENUATION_LINEAR:
-		light_attenuation = 1.f / (1.f + min_distance);
+		mul3s(obj_color, 1.f / (1.f + min_distance), obj_color);
 		break;
 	case LIGHT_ATTENUATION_SQUARE:
-		light_attenuation = 1.f / sqr(1.f + min_distance);
+		mul3s(obj_color, 1.f / sqr(1.f + min_distance), obj_color);
 		break;
 	}
-	mul3s(obj_color, light_attenuation, obj_color);
 	add3v(color, obj_color, color);
 
 	if(!remaining_bounces)
@@ -2366,7 +2367,7 @@ void create_image(const Context *context)
 
 void process_arguments(int argc, char *argv[], Context *context)
 {
-	if (argc <= 7) {
+	if (argc < 5) {
 		if (argc == 2) {
 			if (! strcmp("--help", argv[1]) || ! strcmp("-h", argv[1])) {
 				printf("%s", HELPTEXT);
@@ -2376,26 +2377,22 @@ void process_arguments(int argc, char *argv[], Context *context)
 		err(ERR_ARGC);
 	}
 
+	context->scene_file = fopen(argv[1], "rb");
+	err_assert(context->scene_file, ERR_ARGV_IO_OPEN_SCENE);
+
+	err_assert(strstr(argv[2], ".ppm"), ERR_ARGV_FILE_EXT);
+	context->output_file = fopen(argv[2], "wb");
+	err_assert(context->output_file, ERR_ARGV_IO_OPEN_OUTPUT);
+
+	context->resolution[X] = abs(atoi(argv[3]));
+	context->resolution[Y] = abs(atoi(argv[4]));
+
 	int32_t i;
-	for (i = 1; i < argc; i += 2) {
+	for (i = 5; i < argc; i += 2) {
 		switch (djb_hash(argv[i])) {
-			case 5859054://-f
-			case 3325380195://--file
-				context->scene_file = fopen(argv[i + 1], "rb");
-				break;
-			case 5859047://-o
-			case 739088698://--output
-				err_assert(strstr(argv[i + 1], ".ppm"), ERR_ARGV_FILE_EXT);
-				context->output_file = fopen(argv[i + 1], "wb");
-				break;
-			case 5859066: //-r
-			case 2395108907://--resolution
-				context->resolution[X] = abs(atoi(argv[i + 1]));
-				context->resolution[Y] = abs(atoi(argv[i++ + 2]));
-				break;
 			case 5859045://-m
 				#ifdef MULTITHREADING
-				if (djb_hash(argv[i + 1]) == 193414065) {//if "max"
+				if (djb_hash(argv[i + 1]) == 193414065) {//max
 					NUM_THREADS = omp_get_max_threads();
 				} else {
 					NUM_THREADS = atoi(argv[i + 1]);
@@ -2444,6 +2441,9 @@ void process_arguments(int argc, char *argv[], Context *context)
 				break;
 			case 5859044://-l
 				switch (djb_hash(argv[i + 1])) {
+				case 2087865487://none
+					context->light_attenuation = LIGHT_ATTENUATION_NONE;
+					break;
 				case 193412846://lin
 					context->light_attenuation = LIGHT_ATTENUATION_LINEAR;
 					break;
@@ -2454,29 +2454,59 @@ void process_arguments(int argc, char *argv[], Context *context)
 					err(ERR_ARGV_LIGHT_ATTENUATION);
 				}
 				break;
+			case 5859064://-p
+				switch (djb_hash(argv[i + 1])) {
+				case 2087865487://none
+					context->log_option = LOG_NONE;
+					break;
+				case 2088303039://real
+					context->log_option = LOG_REALTIME;
+					break;
+				case 193416643://cpu
+					context->log_option = LOG_CPUTIME;
+					break;
+				}
+				break;
 			default:
 				err(ERR_ARGV_UNRECOGNIZED);
 		}
 	}
-	err_assert(context->scene_file, ERR_ARGV_IO_OPEN_SCENE);
-	err_assert(context->output_file, ERR_ARGV_IO_OPEN_OUTPUT);
+}
+
+void log_msg(const Context *context, const char *msg)
+{
+	double t;
+	switch (context->log_option) {
+	case LOG_NONE:
+		return;
+	case LOG_REALTIME: {
+		struct timespec cur_t;
+		timespec_get(&cur_t, TIME_UTC);
+		t = (cur_t.tv_sec - context->start_timespec.tv_sec) + (cur_t.tv_nsec - context->start_timespec.tv_nsec) * 1e-9;
+		}
+		break;
+	case LOG_CPUTIME: {
+		clock_t cur_t = clock();
+		t = (double)(cur_t - context->start_clock) / CLOCKS_PER_SEC;
+		}
+		break;
+	}
+	printf("[%07.3f] %s\n", t, msg);
 }
 
 int main(int argc, char *argv[])
 {
-	struct timespec start_t, current_t;
-	timespec_get(&start_t, TIME_UTC);
-
-	srand((unsigned) start_t.tv_sec);
-
 	Context *context = context_new();
+
+	srand((unsigned) context->start_timespec.tv_sec);
+
 	process_arguments(argc, argv, context);
 
 #ifdef MULTITHREADING
 	omp_set_num_threads(NUM_THREADS);
 #endif
 
-	PRINT_TIME("INITIALIZING SCENE.");
+	log_msg(context, "INITIALIZING SCENE.");
 
 	scene_load(context);
 	fclose(context->scene_file);
@@ -2484,18 +2514,18 @@ int main(int argc, char *argv[])
 	normalize_scene(context);
 	bvh_generate(context);
 
-	PRINT_TIME("INITIALIZED SCENE. BEGAN RENDERING.");
+	log_msg(context, "INITIALIZED SCENE. BEGAN RENDERING.");
 
 	create_image(context);
 
-	PRINT_TIME("FINISHED RENDERING. SAVING IMAGE.");
+	log_msg(context, "FINISHED RENDERING. SAVING IMAGE.");
 
 	save_image(context->output_file, &context->camera->image);
 	fclose(context->output_file);
 
-	PRINT_TIME("SAVED IMAGE.");
+	log_msg(context, "SAVED IMAGE.");
 
 	context_delete(context);
 
-	PRINT_TIME("TERMINATED PROGRAM.");
+	log_msg(context, "TERMINATED PROGRAM.");
 }

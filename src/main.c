@@ -4,6 +4,7 @@
 * Description: A simple raytracer in C
 * Libraries used:
 * 	cJSON (https://github.com/DaveGamble/cJSON)
+*	SimplexNoise (https://github.com/SRombauts/SimplexNoise)
 * Setting macros:
 *	PRINT_TIME - prints status messages with timestamps
 * 	MULTITHREADING - enables multithreading
@@ -20,11 +21,16 @@
 *		Treat emittant objects as lights
 *		Remove point lights
 *	Textures:
-*		Create procedural textures
+*		More procedural textures
 *	Optimization:
 *		Consider LOD
 *	Other:
 * 		Denoising
+*		CLI params
+*		time printing
+*		Rework object
+*		Documentation
+*		Port scenes to new format
 */
 
 #include <float.h>
@@ -37,6 +43,7 @@
 #include <time.h>
 
 #include "../lib/cJSON.h"
+#include "../lib/SimplexNoise.h"
 
 /*******************************************************************************
 *	MACRO
@@ -122,6 +129,11 @@ typedef struct BoundingCuboid BoundingCuboid;
 
 /* Material */
 typedef struct Material Material;
+typedef struct Texture Texture;
+typedef struct TextureUniform TextureUniform;
+typedef struct TextureCheckerboard TextureCheckerboard;
+typedef struct TextureBrick TextureBrick;
+typedef struct TextureNoisySin TextureNoisySin;
 
 /* Object */
 typedef union Object Object;
@@ -355,16 +367,47 @@ typedef struct BoundingCuboid {
 typedef struct Material {
 	int32_t id;
 	Vec3 ks;  /*specular reflection constant*/
-	Vec3 kd; /*diffuse reflection constant*/
 	Vec3 ka; /*ambient reflection constant*/
 	Vec3 kr; /*specular interreflection constant*/
 	Vec3 kt; /*transparency constant*/
 	Vec3 ke; /*emittance constant*/
 	float shininess; /*shininess constant*/
 	float refractive_index;
+	Texture *texture;
 	bool reflective;
 	bool transparent;
 } Material;
+
+typedef struct Texture {
+	void (*get_color)(const Texture*, const Vec3, Vec3);
+} Texture;
+
+typedef struct TextureUniform {
+	Texture texture;
+	Vec3 color;
+} TextureUniform;
+
+typedef struct TextureCheckerboard {
+	Texture texture;
+	Vec3 colors[2];
+	float scale;
+} TextureCheckerboard;
+
+typedef struct TextureBrick {
+	Texture texture;
+	Vec3 colors[2];
+	float scale;
+	float mortar_width;
+} TextureBrick;
+
+typedef struct TextureNoisySin {
+	Texture texture;
+	Vec3 color;
+	Vec3 color_gradient;
+	float noise_feature_scale;
+	float noise_scale;
+	float frequency_scale;
+} TextureNoisySin;
 
 /* Object */
 typedef union Object {
@@ -486,9 +529,14 @@ void light_load(const cJSON *json, Light *light);
 void light_scale(Light *light, const Vec3 neg_shift, const float scale);
 
 /* Material */
-void material_init(Material *material, const int32_t id, const Vec3 ks, const Vec3 kd, const Vec3 ka, const Vec3 kr, const Vec3 kt, const Vec3 ke, const float shininess, const float refractive_index);
+void material_init(Material *material, const int32_t id, const Vec3 ks, const Vec3 ka, const Vec3 kr, const Vec3 kt, const Vec3 ke, const float shininess, const float refractive_index, Texture * const texture);
 void material_load(const cJSON *json, Material *material);
 Material *get_material(const Context *context, const int32_t id);
+Texture *texture_load(const cJSON *json);
+void texture_get_color_uniform(const Texture *tex, const Vec3 point, Vec3 color);
+void texture_get_color_checkerboard(const Texture *tex, const Vec3 point, Vec3 color);
+void texture_get_color_brick(const Texture *tex, const Vec3 point, Vec3 color);
+void texture_get_color_noisy_sin(const Texture *tex, const Vec3 point, Vec3 color);
 
 /* Object */
 void object_add(const Object object, Context *context);
@@ -1260,17 +1308,17 @@ void bvh_print(const BVH *bvh, const uint32_t depth)
 *	Material
 *******************************************************************************/
 
-void material_init(Material *material, const int32_t id, const Vec3 ks, const Vec3 kd, const Vec3 ka, const Vec3 kr, const Vec3 kt, const Vec3 ke, const float shininess, const float refractive_index)
+void material_init(Material *material, const int32_t id, const Vec3 ks, const Vec3 ka, const Vec3 kr, const Vec3 kt, const Vec3 ke, const float shininess, const float refractive_index, Texture * const texture)
 {
 	material->id = id;
 	memcpy(material->ks, ks, sizeof(Vec3));
-	memcpy(material->kd, kd, sizeof(Vec3));
 	memcpy(material->ka, ka, sizeof(Vec3));
 	memcpy(material->kr, kr, sizeof(Vec3));
 	memcpy(material->kt, kt, sizeof(Vec3));
 	memcpy(material->ke, ke, sizeof(Vec3));
 	material->shininess = shininess;
 	material->refractive_index = refractive_index;
+	material->texture = texture;
 	material->reflective = mag3(kr) > MATERIAL_THRESHOLD;
 	material->transparent = mag3(kt) > MATERIAL_THRESHOLD;
 }
@@ -1279,46 +1327,43 @@ void material_load(const cJSON *json, Material *material)
 {
 	cJSON  *json_id = cJSON_GetObjectItemCaseSensitive(json, "id"),
 		*json_ks = cJSON_GetObjectItemCaseSensitive(json, "ks"),
-		*json_kd = cJSON_GetObjectItemCaseSensitive(json, "kd"),
 		*json_ka = cJSON_GetObjectItemCaseSensitive(json, "ka"),
 		*json_kr = cJSON_GetObjectItemCaseSensitive(json, "kr"),
 		*json_kt = cJSON_GetObjectItemCaseSensitive(json, "kt"),
 		*json_ke = cJSON_GetObjectItemCaseSensitive(json, "ke"),
 		*json_shininess = cJSON_GetObjectItemCaseSensitive(json, "shininess"),
-		*json_refractive_index = cJSON_GetObjectItemCaseSensitive(json, "refractive_index");
+		*json_refractive_index = cJSON_GetObjectItemCaseSensitive(json, "refractive_index"),
+		*json_texture = cJSON_GetObjectItemCaseSensitive(json, "texture");
 
 	err_assert(cJSON_IsNumber(json_shininess)
 		&& cJSON_IsNumber(json_refractive_index)
 		&& cJSON_IsNumber(json_id), ERR_JSON_VALUE_NOT_NUMBER);
+	err_assert(cJSON_IsObject(json_texture), ERR_JSON_VALUE_NOT_OBJECT);
 	err_assert(cJSON_IsArray(json_ks)
-		&& cJSON_IsArray(json_kd)
 		&& cJSON_IsArray(json_ka)
 		&& cJSON_IsArray(json_kr)
 		&& cJSON_IsArray(json_kt)
 		&& cJSON_IsArray(json_ke), ERR_JSON_VALUE_NOT_ARRAY);
 	err_assert(cJSON_GetArraySize(json_ks) == 3
-		&& cJSON_GetArraySize(json_kd) == 3
 		&& cJSON_GetArraySize(json_ka) == 3
 		&& cJSON_GetArraySize(json_kr) == 3
 		&& cJSON_GetArraySize(json_kt) == 3
 		&& cJSON_GetArraySize(json_ke) == 3, ERR_JSON_ARRAY_SIZE);
 
-	int32_t id;
-	Vec3 ks, kd, ka, kr, kt, ke;
-	float shininess, refractive_index;
+	Vec3 ks, ka, kr, kt, ke;
 
 	cJSON_parse_float_array(json_ks, ks);
-	cJSON_parse_float_array(json_kd, kd);
 	cJSON_parse_float_array(json_ka, ka);
 	cJSON_parse_float_array(json_kr, kr);
 	cJSON_parse_float_array(json_kt, kt);
 	cJSON_parse_float_array(json_ke, ke);
 
-	id = json_id->valueint;
-	shininess = json_shininess->valuedouble;
-	refractive_index = json_refractive_index->valuedouble;
+	int32_t id = json_id->valueint;
+	float shininess = json_shininess->valuedouble;
+	float refractive_index = json_refractive_index->valuedouble;
+	Texture *texture = texture_load(json_texture);
 
-	material_init(material, id, ks, kd, ka, kr, kt, ke, shininess, refractive_index);
+	material_init(material, id, ks, ka, kr, kt, ke, shininess, refractive_index, texture);
 }
 
 Material *get_material(const Context *context, const int32_t id)
@@ -1329,6 +1374,132 @@ Material *get_material(const Context *context, const int32_t id)
 			return &context->materials[i];
 	err(ERR_JSON_INVALID_MATERIAL);
 	return NULL;
+}
+
+Texture *texture_load(const cJSON *json)
+{
+	cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json, "type");
+	err_assert(cJSON_IsString(json_type), ERR_JSON_VALUE_NOT_STRING);
+
+	switch (djb_hash(json_type->valuestring)) {
+	case 3226203393: { //uniform
+		cJSON *json_color = cJSON_GetObjectItemCaseSensitive(json, "color");
+		err_assert(cJSON_IsArray(json_color), ERR_JSON_VALUE_NOT_ARRAY);
+		err_assert(cJSON_GetArraySize(json_color) == 3, ERR_JSON_ARRAY_SIZE);
+
+		TextureUniform *texture = malloc(sizeof(TextureUniform));
+		texture->texture.get_color = &texture_get_color_uniform;
+		cJSON_parse_float_array(json_color, texture->color);
+		return (Texture*)texture;
+		}
+	case 2234799246: { //checkerboard
+		cJSON *json_colors = cJSON_GetObjectItemCaseSensitive(json, "colors"),
+			*json_scale = cJSON_GetObjectItemCaseSensitive(json, "scale");
+		err_assert(cJSON_IsArray(json_colors), ERR_JSON_VALUE_NOT_ARRAY);
+		err_assert(cJSON_GetArraySize(json_colors) == 2, ERR_JSON_ARRAY_SIZE);
+		err_assert(cJSON_IsNumber(json_scale), ERR_JSON_VALUE_NOT_NUMBER);
+
+		TextureCheckerboard *texture = malloc(sizeof(TextureCheckerboard));
+		texture->texture.get_color = &texture_get_color_checkerboard;
+		texture->scale = json_scale->valuedouble;
+
+		cJSON *json_iter;
+		size_t i = 0;
+		cJSON_ArrayForEach (json_iter, json_colors) {
+			err_assert(cJSON_IsArray(json_iter), ERR_JSON_VALUE_NOT_ARRAY);
+			err_assert(cJSON_GetArraySize(json_iter) == 3, ERR_JSON_ARRAY_SIZE);
+			cJSON_parse_float_array(json_iter, texture->colors[i++]);
+		}
+		return (Texture*)texture;
+		}
+	case 176032948: { //brick
+		cJSON *json_colors = cJSON_GetObjectItemCaseSensitive(json, "colors"),
+			*json_scale = cJSON_GetObjectItemCaseSensitive(json, "scale"),
+			*json_mortar_width = cJSON_GetObjectItemCaseSensitive(json, "mortar width");
+		err_assert(cJSON_IsArray(json_colors), ERR_JSON_VALUE_NOT_ARRAY);
+		err_assert(cJSON_GetArraySize(json_colors) == 2, ERR_JSON_ARRAY_SIZE);
+		err_assert(cJSON_IsNumber(json_scale)
+			&& cJSON_IsNumber(json_mortar_width), ERR_JSON_VALUE_NOT_NUMBER);
+
+		TextureBrick *texture = malloc(sizeof(TextureBrick));
+		texture->texture.get_color = &texture_get_color_brick;
+		texture->scale = json_scale->valuedouble;
+		texture->mortar_width = json_mortar_width->valuedouble;
+
+		cJSON *json_iter;
+		size_t i = 0;
+		cJSON_ArrayForEach (json_iter, json_colors) {
+			err_assert(cJSON_IsArray(json_iter), ERR_JSON_VALUE_NOT_ARRAY);
+			err_assert(cJSON_GetArraySize(json_iter) == 3, ERR_JSON_ARRAY_SIZE);
+			cJSON_parse_float_array(json_iter, texture->colors[i++]);
+		}
+		return (Texture*)texture;
+		}
+	case 957354035: {
+		cJSON *json_color = cJSON_GetObjectItemCaseSensitive(json, "color"),
+			*json_color_gradient = cJSON_GetObjectItemCaseSensitive(json, "color gradient"),
+			*json_noise_feature_scale = cJSON_GetObjectItemCaseSensitive(json, "noise feature scale"),
+			*json_noise_scale = cJSON_GetObjectItemCaseSensitive(json, "noise scale"),
+			*json_frequency_scale = cJSON_GetObjectItemCaseSensitive(json, "frequency scale");
+		err_assert(cJSON_IsArray(json_color)
+			&& cJSON_IsArray(json_color_gradient), ERR_JSON_VALUE_NOT_ARRAY);
+		err_assert(cJSON_GetArraySize(json_color) == 3
+			&& cJSON_GetArraySize(json_color_gradient) == 3, ERR_JSON_ARRAY_SIZE);
+		err_assert(cJSON_IsNumber(json_noise_feature_scale)
+			&& cJSON_IsNumber(json_noise_scale)
+			&& cJSON_IsNumber(json_frequency_scale), ERR_JSON_VALUE_NOT_NUMBER);
+
+		TextureNoisySin *texture = malloc(sizeof(TextureNoisySin));
+		texture->texture.get_color = &texture_get_color_noisy_sin;
+		texture->noise_feature_scale = json_noise_feature_scale->valuedouble;
+		texture->noise_scale = json_noise_scale->valuedouble;
+		texture->frequency_scale = json_frequency_scale->valuedouble;
+		cJSON_parse_float_array(json_color, texture->color);
+		cJSON_parse_float_array(json_color_gradient, texture->color_gradient);
+		return (Texture*)texture;
+		}
+	default:
+		err(ERR_JSON_UNRECOGNIZED);
+	}
+	return NULL;
+}
+
+void texture_get_color_uniform(const Texture *tex, const Vec3 point, Vec3 color)
+{
+	(void)point;
+	TextureUniform *texture = (TextureUniform*)tex;
+	memcpy(color, texture->color, sizeof(Vec3));
+}
+
+void texture_get_color_checkerboard(const Texture *tex, const Vec3 point, Vec3 color)
+{
+	TextureCheckerboard *texture = (TextureCheckerboard*)tex;
+	Vec3 scaled_point;
+	mul3s(point, texture->scale, scaled_point);
+	uint32_t parity = ((uint32_t)scaled_point[X] + (uint32_t)scaled_point[Y] + (uint32_t)scaled_point[Z]) % 2u;
+	memcpy(color, texture->colors[parity], sizeof(Vec3));
+}
+
+void texture_get_color_brick(const Texture *tex, const Vec3 point, Vec3 color)
+{
+	TextureBrick *texture = (TextureBrick*)tex;
+	Vec3 scaled_point;
+	mul3s(point, texture->scale, scaled_point);
+	uint32_t parity = (uint32_t)scaled_point[X] % 2u;
+	scaled_point[Y] -= parity * .5f;
+	uint32_t is_mortar = (scaled_point[X] - floorf(scaled_point[X]) < texture->mortar_width)
+	|| (scaled_point[Y] - floorf(scaled_point[Y]) < texture->mortar_width);
+	memcpy(color, texture->colors[is_mortar], sizeof(Vec3));
+}
+
+void texture_get_color_noisy_sin(const Texture *tex, const Vec3 point, Vec3 color)
+{
+	TextureNoisySin *texture = (TextureNoisySin*)tex;
+	Vec3 scaled_point;
+	mul3s(point, texture->noise_feature_scale, scaled_point);
+	float n = (1.f + sinf((point[X] + simplex_noise(scaled_point[X], scaled_point[Y], scaled_point[Z]) * texture->noise_scale) * texture->frequency_scale)) * .5f;
+	mul3s(texture->color_gradient, n, color);
+	add3v(color, texture->color, color);
 }
 
 /*******************************************************************************
@@ -2063,7 +2234,8 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			mul3s(incoming_light_intensity, light_attenuation, incoming_light_intensity);
 
 			Vec3 diffuse;
-			mul3v(material->kd, incoming_light_intensity, diffuse);
+			material->texture->get_color(material->texture, outgoing_ray.position, diffuse);
+			mul3v(diffuse, incoming_light_intensity, diffuse);
 			mul3s(diffuse, fmaxf(0., a), diffuse);
 
 			Vec3 reflected;

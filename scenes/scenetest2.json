@@ -20,12 +20,13 @@
 			"shininess": 5.0,
 			"refractive_index": 1.0,
 			"texture": {
-				"type": "noisy sin",
+				"type": "noisy periodic",
 				"color": [0, 0.2, 0.4],
 				"color gradient": [0.3, 0.3, 0.5],
 				"noise feature scale": 10,
 				"noise scale": 0.2,
-				"frequency scale": 100
+				"frequency scale": 100,
+				"function": "sin"
 			}
 		},
 		{
@@ -159,12 +160,32 @@
 			"shininess": 5.0,
 			"refractive_index": 1.0,
 			"texture": {
-				"type": "noisy sin",
+				"type": "noisy periodic",
 				"color": [0.1, 0.4, 0.1],
 				"color gradient": [0.3, 0.8, 0.8],
 				"noise feature scale": 3,
 				"noise scale": 0.2,
-				"frequency scale": 40
+				"frequency scale": 40,
+				"function": "saw"
+			}
+		},
+		{
+			"id": 11,
+			"ks": [0.7, 0.7, 0.7],
+			"ka": [1.0, 1.0, 1.0],
+			"kr": [0.0, 0.0, 0.0],
+			"kt": [0.0, 0.0, 0.0],
+			"ke": [0.0, 0.0, 0.0],
+			"shininess": 5.0,
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "noisy periodic",
+				"color": [0.3, 0.15, 0.1],
+				"color gradient": [0.6, 0.3, 0.25],
+				"noise feature scale": 3,
+				"noise scale": 0.2,
+				"frequency scale": 40,
+				"function": "square"
 			}
 		}
 	],
@@ -176,7 +197,7 @@
 			{
 				"material": 1,
 				"epsilon": 0.00025,
-				"position": [4.0, 0.0, 10.0],
+				"position": [4.0, 0.0, 8.0],
 				"radius": 2.0
 			}
 		},
@@ -186,7 +207,7 @@
 			{
 				"material": 8,
 				"epsilon": 0.00025,
-				"position": [-3.0, 1.0, 8.0],
+				"position": [-3.0, 1.0, 6.0],
 				"radius": 1.5
 			}
 		},
@@ -196,7 +217,7 @@
 			{
 				"material": 9,
 				"epsilon": 0.00025,
-				"position": [1.0, 1.0, 6.0],
+				"position": [1.0, 1.0, 4.0],
 				"radius": 1
 			}
 		},
@@ -206,7 +227,17 @@
 			{
 				"material": 10,
 				"epsilon": 0.00025,
-				"position": [-1.0, -1.0, 11.0],
+				"position": [-1.0, -1.0, 9.0],
+				"radius": 2.5
+			}
+		},
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"material": 11,
+				"epsilon": 0.00025,
+				"position": [3.0, -3.0, 11.0],
 				"radius": 2.5
 			}
 		},

@@ -20,15 +20,13 @@
 *		Treat emittant objects as lights
 *		Remove point lights
 *		Normalization functions
-*	Textures:
-*		More procedural textures
 *	Optimization:
 *		Consider LOD
 *	Other:
 * 		Denoising
 *		Documentation
 *		Port scenes to new format
-*		Update readme
+*		Update readme gallery after resolving Lighting
 */
 
 #include <float.h>
@@ -95,7 +93,7 @@ typedef struct Texture Texture;
 typedef struct TextureUniform TextureUniform;
 typedef struct TextureCheckerboard TextureCheckerboard;
 typedef struct TextureBrick TextureBrick;
-typedef struct TextureNoisySin TextureNoisySin;
+typedef struct TextureNoisyPeriodic TextureNoisyPeriodic;
 
 /* Object */
 typedef struct Object Object;
@@ -142,6 +140,13 @@ typedef enum {
 	LOG_REALTIME,
 	LOG_CPUTIME,
 } LogOption;
+
+typedef enum {
+	PERIODIC_FUNC_SIN,
+	PERIODIC_FUNC_SAW,
+	PERIODIC_FUNC_TRIANGLE,
+	PERIODIC_FUNC_SQUARE,
+} PeriodicFunction;
 
 /* Object */
 typedef enum {
@@ -369,14 +374,15 @@ typedef struct TextureBrick {
 	float mortar_width;
 } TextureBrick;
 
-typedef struct TextureNoisySin {
+typedef struct TextureNoisyPeriodic {
 	Texture texture;
 	Vec3 color;
 	Vec3 color_gradient;
 	float noise_feature_scale;
 	float noise_scale;
 	float frequency_scale;
-} TextureNoisySin;
+	PeriodicFunction func;
+} TextureNoisyPeriodic;
 
 /* Object */
 typedef struct Object {
@@ -498,7 +504,7 @@ Texture *texture_load(const cJSON *json);
 void texture_get_color_uniform(const Texture *tex, const Vec3 point, Vec3 color);
 void texture_get_color_checkerboard(const Texture *tex, const Vec3 point, Vec3 color);
 void texture_get_color_brick(const Texture *tex, const Vec3 point, Vec3 color);
-void texture_get_color_noisy_sin(const Texture *tex, const Vec3 point, Vec3 color);
+void texture_get_color_noisy_periodic(const Texture *tex, const Vec3 point, Vec3 color);
 
 /* Object */
 void object_add(Object * const object, Context *context);
@@ -1398,12 +1404,13 @@ Texture *texture_load(const cJSON *json)
 		}
 		return (Texture*)texture;
 		}
-	case 957354035: {
+	case 202158024: { //noisy periodic
 		cJSON *json_color = cJSON_GetObjectItemCaseSensitive(json, "color"),
 			*json_color_gradient = cJSON_GetObjectItemCaseSensitive(json, "color gradient"),
 			*json_noise_feature_scale = cJSON_GetObjectItemCaseSensitive(json, "noise feature scale"),
 			*json_noise_scale = cJSON_GetObjectItemCaseSensitive(json, "noise scale"),
-			*json_frequency_scale = cJSON_GetObjectItemCaseSensitive(json, "frequency scale");
+			*json_frequency_scale = cJSON_GetObjectItemCaseSensitive(json, "frequency scale"),
+			*json_function = cJSON_GetObjectItemCaseSensitive(json, "function");
 		err_assert(cJSON_IsArray(json_color)
 			&& cJSON_IsArray(json_color_gradient), ERR_JSON_VALUE_NOT_ARRAY);
 		err_assert(cJSON_GetArraySize(json_color) == 3
@@ -1411,14 +1418,32 @@ Texture *texture_load(const cJSON *json)
 		err_assert(cJSON_IsNumber(json_noise_feature_scale)
 			&& cJSON_IsNumber(json_noise_scale)
 			&& cJSON_IsNumber(json_frequency_scale), ERR_JSON_VALUE_NOT_NUMBER);
+		err_assert(cJSON_IsString(json_function), ERR_JSON_VALUE_NOT_STRING);
 
-		TextureNoisySin *texture = malloc(sizeof(TextureNoisySin));
-		texture->texture.get_color = &texture_get_color_noisy_sin;
+		TextureNoisyPeriodic *texture = malloc(sizeof(TextureNoisyPeriodic));
+		texture->texture.get_color = &texture_get_color_noisy_periodic;
 		texture->noise_feature_scale = json_noise_feature_scale->valuedouble;
 		texture->noise_scale = json_noise_scale->valuedouble;
 		texture->frequency_scale = json_frequency_scale->valuedouble;
 		cJSON_parse_float_array(json_color, texture->color);
 		cJSON_parse_float_array(json_color_gradient, texture->color_gradient);
+		switch (djb_hash(json_function->valuestring)) {
+		case 193433777: //sin
+			texture->func = PERIODIC_FUNC_SIN;
+			break;
+		case 193433504: //saw
+			texture->func = PERIODIC_FUNC_SAW;
+			break;
+		case 837065195: //triangle
+			texture->func = PERIODIC_FUNC_TRIANGLE;
+			break;
+		case 2144888260: //square
+			texture->func = PERIODIC_FUNC_SQUARE;
+			break;
+		default:
+			err(ERR_JSON_UNRECOGNIZED);
+		}
+
 		return (Texture*)texture;
 		}
 	default:
@@ -1455,13 +1480,26 @@ void texture_get_color_brick(const Texture *tex, const Vec3 point, Vec3 color)
 	memcpy(color, texture->colors[is_mortar], sizeof(Vec3));
 }
 
-void texture_get_color_noisy_sin(const Texture *tex, const Vec3 point, Vec3 color)
+void texture_get_color_noisy_periodic(const Texture *tex, const Vec3 point, Vec3 color)
 {
-	TextureNoisySin *texture = (TextureNoisySin*)tex;
+	TextureNoisyPeriodic *texture = (TextureNoisyPeriodic*)tex;
 	Vec3 scaled_point;
 	mul3s(point, texture->noise_feature_scale, scaled_point);
-	float n = (1.f + sinf((point[X] + simplex_noise(scaled_point[X], scaled_point[Y], scaled_point[Z]) * texture->noise_scale) * texture->frequency_scale)) * .5f;
-	mul3s(texture->color_gradient, n, color);
+	float angle = (point[X] + simplex_noise(scaled_point[X], scaled_point[Y], scaled_point[Z]) * texture->noise_scale) * texture->frequency_scale;
+	switch (texture->func) {
+	case PERIODIC_FUNC_SIN:
+		mul3s(texture->color_gradient, (1.f + sinf(angle)) * .5f, color);
+		break;
+	case PERIODIC_FUNC_SAW:
+		mul3s(texture->color_gradient, angle - floorf(angle), color);
+		break;
+	case PERIODIC_FUNC_TRIANGLE:
+		mul3s(texture->color_gradient, fabs(2.f * (angle - floorf(angle) - .5f)), color);
+		break;
+	case PERIODIC_FUNC_SQUARE:
+		mul3s(texture->color_gradient, !signbit(sinf(angle)), color);
+		break;
+	}
 	add3v(color, texture->color, color);
 }
 

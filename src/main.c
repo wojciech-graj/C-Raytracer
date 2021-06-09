@@ -1,7 +1,7 @@
 /*
 * Author: Wojciech Graj
 * License: MIT
-* Description: A simple raytracer in C
+* Description: A raytracer in C
 * Libraries used:
 * 	cJSON (https://github.com/DaveGamble/cJSON)
 *	SimplexNoise (https://github.com/SRombauts/SimplexNoise)
@@ -16,14 +16,12 @@
 
 /*
 * TODO:
-*	Lighting:
-*		Treat emittant objects as lights
-*		Remove point lights
+*	Image:
 *		Normalization functions
+* 		Denoising
 *	Optimization:
 *		Consider LOD
 *	Other:
-* 		Denoising
 *		Documentation
 *		Port scenes to new format
 *		Update readme gallery after resolving Lighting
@@ -62,8 +60,10 @@ uint32_t NUM_THREADS = 1;
 			err(err_code);\
 	} while(false)
 
-/* Object */
-#define NUM_OBJECT_MEMBERS 2
+#define SPHERICAL_TO_CARTESIAN(radius, inclination, azimuth)\
+	{radius * cosf(azimuth) * sinf(inclination),\
+		radius * sinf(azimuth) * sinf(inclination),\
+		radius * cosf(inclination)}
 
 /*******************************************************************************
 *	TYPE DEFINITION
@@ -80,9 +80,6 @@ typedef struct Line Line;
 /* Camera */
 typedef struct Image Image;
 typedef struct Camera Camera;
-
-/* Light */
-typedef struct Light Light;
 
 /* BoundingCuboid */
 typedef struct BoundingCuboid BoundingCuboid;
@@ -188,6 +185,7 @@ typedef enum {
 	ERR_JSON_ARGC_SCENE,
 	ERR_JSON_CAMERA_FOV,
 	ERR_JSON_INVALID_MATERIAL,
+	ERR_JSON_EMITTANT,
 	ERR_MALLOC,
 	ERR_JSON_NO_CAMERA,
 	ERR_JSON_NO_OBJECTS,
@@ -234,6 +232,7 @@ const char *ERR_MESSAGES[ERR_END] = {
 	[ERR_JSON_NO_OBJECTS] = 	"JSON: Unable to find objects in scene.",
 	[ERR_JSON_NO_LIGHTS] = 		"JSON: Unable to find lights in scene.",
 	[ERR_JSON_NO_MATERIALS] = 	"JSON: Unable to find materials in scene.",
+	[ERR_JSON_EMITTANT] =		"JSON: Object cannot be emittant.",
 	[ERR_STL_IO_FP] = 		"STL :I/O : Unable to move file pointer.",
 	[ERR_STL_IO_READ] = 		"STL :I/O : Unable to read file.",
 	[ERR_STL_ENCODING] = 		"STL : File uses ASCII encoding.",
@@ -275,8 +274,8 @@ typedef struct Context {
 	Object **unbound_objects; //Since planes do not have a bounding cuboid and cannot be included in the BVH, they must be looked at separately
 	size_t num_unbound_objects;
 #endif
-	Light *lights;
-	size_t num_lights;
+	Object **emittant_objects;
+	size_t num_emittant_objects;
 	Material *materials;
 	size_t num_materials;
 	Camera *camera;
@@ -325,12 +324,6 @@ typedef struct Camera {
 	Image image;
 } Camera;
 
-/* Light */
-typedef struct Light {
-	Vec3 position;
-	Vec3 intensity;
-} Light;
-
 /* BoundingCuboid */
 typedef struct BoundingCuboid {
 	float epsilon;
@@ -350,6 +343,7 @@ typedef struct Material {
 	Texture *texture;
 	bool reflective;
 	bool transparent;
+	bool emittant;
 } Material;
 
 typedef struct Texture {
@@ -387,6 +381,7 @@ typedef struct TextureNoisyPeriodic {
 /* Object */
 typedef struct Object {
 	ObjectData const *object_data;
+	uint32_t num_lights;
 	float epsilon;
 	Material *material;
 } Object;
@@ -423,6 +418,7 @@ typedef struct ObjectData {
 	BoundingCuboid *(*generate_bounding_cuboid)(const Object*);
 	void (*get_corners)(const Object*, Vec3[2]);
 	void (*scale)(const Object*, const Vec3, const float);
+	void (*get_light_point)(const Object*, const Vec3, Vec3);
 } ObjectData;
 
 /* BVH */
@@ -491,11 +487,6 @@ Camera *camera_load(const cJSON *json, Context *context);
 void save_image(FILE *file, const Image *image);
 void camera_scale(Camera *camera, const Vec3 neg_shift, const float scale);
 
-/* Light */
-void light_init(Light *light, const Vec3 position, const Vec3 intensity);
-void light_load(const cJSON *json, Light *light);
-void light_scale(Light *light, const Vec3 neg_shift, const float scale);
-
 /* Material */
 void material_init(Material *material, const int32_t id, const Vec3 ks, const Vec3 ka, const Vec3 kr, const Vec3 kt, const Vec3 ke, const float shininess, const float refractive_index, Texture * const texture);
 void material_load(const cJSON *json, Material *material);
@@ -511,7 +502,7 @@ void object_add(Object * const object, Context *context);
 void object_load(const cJSON *json, const Context *context, Object *object, const ObjectType object_type);
 #ifdef UNBOUND_OBJECTS
 void unbound_objects_get_closest_intersection(const Context *context, const Line *ray, Object **closest_object, Vec3 closest_normal, float *closest_distance);
-bool unbound_objects_is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity);
+bool unbound_objects_is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity, const Object *emittant_object);
 #endif
 
 /* Sphere */
@@ -522,6 +513,7 @@ bool sphere_intersects_in_range(const Object *object, const Line *ray, const flo
 BoundingCuboid *sphere_generate_bounding_cuboid(const Object *object);
 void sphere_get_corners(const Object *object, Vec3 corners[2]);
 void sphere_scale(const Object *object, const Vec3 neg_shift, const float scale);
+void sphere_get_light_point(const Object *object, const Vec3 point, Vec3 light_point);
 
 /* Triangle */
 void triangle_init(Triangle *triangle);
@@ -532,6 +524,7 @@ bool triangle_intersects_in_range(const Object *object, const Line *ray, float m
 BoundingCuboid *triangle_generate_bounding_cuboid(const Object *object);
 void triangle_get_corners(const Object *object, Vec3 corners[2]);
 void triangle_scale(const Object *object, const Vec3 neg_shift, const float scale);
+void triangle_get_light_point(const Object *object, const Vec3 point, Vec3 light_point);
 
 /* Plane */
 #ifdef UNBOUND_OBJECTS
@@ -561,7 +554,7 @@ BoundingCuboid *bvh_generate_bounding_cuboid_node(const BVH *bvh_left, const BVH
 BVH *bvh_generate_node(const BVHWithMorton *leaf_array, const size_t first, const size_t last);
 void bvh_generate(Context *context);
 void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object **closest_object, Vec3 closest_normal, float *closest_distance);
-bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity);
+bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity, const Object *emittant_object);
 #ifdef DEBUG
 void bvh_print(const BVH *bvh, const uint32_t depth);
 #endif
@@ -573,7 +566,7 @@ void scene_load(Context *context);
 /* MISC */
 void err(const ErrorCode error_code);
 void get_closest_intersection(const Context *context, const Line *ray, Object **closest_object, Vec3 closest_normal, float *closest_distance);
-bool is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity);
+bool is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity, const Object *emittant_object);
 void normalize_scene(Context *context);
 void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color, const uint32_t bounce_count, Object *inside_object);
 void create_image(const Context *context);
@@ -604,6 +597,7 @@ const ObjectData OBJECT_DATA[] = {
 		.generate_bounding_cuboid = &sphere_generate_bounding_cuboid,
 		.get_corners = &sphere_get_corners,
 		.scale = &sphere_scale,
+		.get_light_point = &sphere_get_light_point,
 	},
 	[OBJECT_TRIANGLE] = {
 		.name = "Triangle",
@@ -616,6 +610,7 @@ const ObjectData OBJECT_DATA[] = {
 		.generate_bounding_cuboid = &triangle_generate_bounding_cuboid,
 		.get_corners = &triangle_get_corners,
 		.scale = &triangle_scale,
+		.get_light_point = &triangle_get_light_point,
 	},
 };
 
@@ -921,7 +916,7 @@ void context_delete(Context *context)
 #ifdef UNBOUND_OBJECTS
 	free(context->unbound_objects);
 #endif
-	free(context->lights);
+	free(context->emittant_objects);
 	free(context->materials);
 	free(context);
 }
@@ -1016,41 +1011,6 @@ void save_image(FILE *file, const Image *image)
 	err_assert(fprintf(file, "P6\n%d %d\n255\n", image->resolution[X], image->resolution[Y]) > 0, ERR_IO_WRITE_IMG);
 	size_t num_pixels = image->resolution[X] * image->resolution[Y];
 	err_assert(fwrite(image->pixels, sizeof(Color), num_pixels, file) == num_pixels, ERR_IO_WRITE_IMG);
-}
-
-/*******************************************************************************
-*	Light
-*******************************************************************************/
-
-void light_init(Light *light, const Vec3 position, const Vec3 intensity)
-{
-	memcpy(light->position, position, sizeof(Vec3));
-	memcpy(light->intensity, intensity, sizeof(Vec3));
-}
-
-void light_load(const cJSON *json, Light *light)
-{
-	err_assert(cJSON_GetArraySize(json) == 2, ERR_JSON_ARGC);
-
-	cJSON *json_position = cJSON_GetObjectItemCaseSensitive(json, "position"),
-		*json_intensity = cJSON_GetObjectItemCaseSensitive(json, "intensity");
-	err_assert(cJSON_IsArray(json_position)
-		&& cJSON_IsArray(json_intensity), ERR_JSON_VALUE_NOT_ARRAY);
-	err_assert(cJSON_GetArraySize(json_position) == 3
-		&& cJSON_GetArraySize(json_intensity) == 3, ERR_JSON_ARRAY_SIZE);
-
-	Vec3 position, intensity;
-
-	cJSON_parse_float_array(json_position, position);
-	cJSON_parse_float_array(json_intensity, intensity);
-
-	light_init(light, position, intensity);
-}
-
-void light_scale(Light *light, const Vec3 neg_shift, const float scale)
-{
-	sub3v(light->position, neg_shift, light->position);
-	mul3s(light->position, scale, light->position);
 }
 
 /*******************************************************************************
@@ -1229,13 +1189,15 @@ void bvh_get_closest_intersection(const BVH *bvh, const Line *ray, Object **clos
 	}
 }
 
-bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity)
+bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance, Vec3 light_intensity, const Object *emittant_object)
 {
 	float tmin, tmax;
 
 	if (bvh->is_leaf) {
 		Vec3 normal;
 		Object *object = bvh->children[0].object;
+		if (object == emittant_object)
+			return false;
 		if (object->object_data->get_intersection(object, ray, &tmin, normal) && tmin < distance) {
 			if (object->material->transparent)
 				mul3v(light_intensity, object->material->kt, light_intensity);
@@ -1250,7 +1212,7 @@ bool bvh_is_light_blocked(const BVH *bvh, const Line *ray, const float distance,
 	for (i = 0; i < 2; i++) {
 		if (bounding_cuboid_intersects(bvh->children[i].bvh->bounding_cuboid, ray, &tmax, &tmin)
 			&& tmin < distance
-			&& bvh_is_light_blocked(bvh->children[i].bvh, ray, distance, light_intensity))
+			&& bvh_is_light_blocked(bvh->children[i].bvh, ray, distance, light_intensity, emittant_object))
 			return true;
 	}
 	return false;
@@ -1288,6 +1250,7 @@ void material_init(Material *material, const int32_t id, const Vec3 ks, const Ve
 	material->shininess = shininess;
 	material->refractive_index = refractive_index;
 	material->texture = texture;
+	material->emittant = mag3(ke) > MATERIAL_THRESHOLD;
 	material->reflective = mag3(kr) > MATERIAL_THRESHOLD;
 	material->transparent = mag3(kt) > MATERIAL_THRESHOLD;
 }
@@ -1515,7 +1478,8 @@ void object_add(Object * const object, Context *context)
 void object_load(const cJSON *json, const Context *context, Object *object, const ObjectType object_type)
 {
 	cJSON *json_epsilon = cJSON_GetObjectItemCaseSensitive(json, "epsilon"),
-		*json_material = cJSON_GetObjectItemCaseSensitive(json, "material");
+		*json_material = cJSON_GetObjectItemCaseSensitive(json, "material"),
+		*json_num_lights = cJSON_GetObjectItemCaseSensitive(json, "lights");
 
 	err_assert(cJSON_IsNumber(json_epsilon)
 		&& cJSON_IsNumber(json_material), ERR_JSON_VALUE_NOT_NUMBER);
@@ -1523,6 +1487,7 @@ void object_load(const cJSON *json, const Context *context, Object *object, cons
 	object->object_data = &OBJECT_DATA[object_type];
 	object->epsilon = json_epsilon->valuedouble;
 	object->material = get_material(context, json_material->valueint);
+	object->num_lights = cJSON_IsNumber(json_num_lights) ? json_num_lights->valueint : 0;
 }
 
 #ifdef UNBOUND_OBJECTS
@@ -1542,8 +1507,9 @@ void unbound_objects_get_closest_intersection(const Context *context, const Line
 	}
 }
 
-bool unbound_objects_is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity)
+bool unbound_objects_is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity, const Object *emittant_object)
 {
+	(void)emittant_object; //NOTE: is unused because planes cant be lights
 	size_t i;
 	for (i = 0; i < context->num_unbound_objects; i++) {
 		Object *object = context->unbound_objects[i];
@@ -1564,8 +1530,6 @@ bool unbound_objects_is_light_blocked(const Context *context, const Line *ray, c
 
 Sphere *sphere_load(const cJSON *json, Context *context)
 {
-	err_assert(cJSON_GetArraySize(json) == 2 + NUM_OBJECT_MEMBERS, ERR_JSON_ARGC);
-
 	cJSON *json_position = cJSON_GetObjectItemCaseSensitive(json, "position"),
 		*json_radius = cJSON_GetObjectItemCaseSensitive(json, "radius");
 
@@ -1633,6 +1597,19 @@ void sphere_scale(const Object *object, const Vec3 neg_shift, const float scale)
 	mul3s(sphere->position, scale, sphere->position);
 }
 
+void sphere_get_light_point(const Object *object, const Vec3 point, Vec3 light_point)
+{
+	Sphere *sphere = (Sphere*)object;
+	Vec3 normal;
+	sub3v(sphere->position, point, normal);
+	float inclination = rand_flt() * 2.f * PI;
+	float azimuth = rand_flt() * 2.f * PI;
+	Vec3 light_direction = SPHERICAL_TO_CARTESIAN(sphere->radius, inclination, azimuth);
+	if (dot3(normal, light_direction))
+		mul3s(light_direction, -1.f, light_direction);
+	add3v(sphere->position, light_direction, light_point);
+}
+
 /*******************************************************************************
 *	Triangle
 *******************************************************************************/
@@ -1652,8 +1629,6 @@ void triangle_delete(Object *object)
 
 Triangle *triangle_load(const cJSON *json, Context *context)
 {
-	err_assert(cJSON_GetArraySize(json) == 3 + NUM_OBJECT_MEMBERS, ERR_JSON_ARGC);
-
 	cJSON *json_vertex_1 = cJSON_GetObjectItemCaseSensitive(json, "vertex_1"),
 		*json_vertex_2 = cJSON_GetObjectItemCaseSensitive(json, "vertex_2"),
 		*json_vertex_3 = cJSON_GetObjectItemCaseSensitive(json, "vertex_3");
@@ -1730,6 +1705,24 @@ void triangle_scale(const Object *object, const Vec3 neg_shift, const float scal
 		mul3s(triangle->edges[i], scale, triangle->edges[i]);
 }
 
+void triangle_get_light_point(const Object *object, const Vec3 point, Vec3 light_point)
+{
+	//NOTE: this method may be inefficient due to the 3 square root operations, but it is unlikely to be used often
+	(void)point;
+	Triangle *triangle = (Triangle*)object;
+	float p = rand_flt(), q = rand_flt();
+
+	if (p + q > 1.f) {
+		p = 1.f - p;
+		q = 1.f - q;
+	}
+
+	size_t i;
+#pragma GCC unroll 3
+	for (i = 0; i < 3; i++)
+		light_point[i] = triangle->vertices[0][i] + (triangle->vertices[1][i] - triangle->vertices[0][i]) * p + (triangle->vertices[2][i] - triangle->vertices[0][i]) * q;
+}
+
 /*******************************************************************************
 *	Plane
 *******************************************************************************/
@@ -1737,8 +1730,6 @@ void triangle_scale(const Object *object, const Vec3 neg_shift, const float scal
 #ifdef UNBOUND_OBJECTS
 Plane *plane_load(const cJSON *json, Context *context)
 {
-	err_assert(cJSON_GetArraySize(json) == 2 + NUM_OBJECT_MEMBERS, ERR_JSON_ARGC);
-
 	cJSON *json_position = cJSON_GetObjectItemCaseSensitive(json, "position"),
 		*json_normal = cJSON_GetObjectItemCaseSensitive(json, "normal");
 
@@ -1749,6 +1740,7 @@ Plane *plane_load(const cJSON *json, Context *context)
 
 	Plane *plane = malloc(sizeof(Plane));
 	object_load(json, context, (Object*)plane, OBJECT_PLANE);
+	err_assert(!plane->object.material->emittant, ERR_JSON_EMITTANT);
 	cJSON_parse_float_array(json_normal, plane->normal);
 	norm3(plane->normal);
 	Vec3 position;
@@ -1813,8 +1805,6 @@ void plane_scale(const Object *object, const Vec3 neg_shift, const float scale)
 
 void mesh_load(const cJSON *json, Context *context)
 {
-	err_assert(cJSON_GetArraySize(json) == 4 + NUM_OBJECT_MEMBERS, ERR_JSON_ARGC);
-
 	cJSON *json_filename = cJSON_GetObjectItemCaseSensitive(json, "filename"),
 		*json_position = cJSON_GetObjectItemCaseSensitive(json, "position"),
 		*json_rotation = cJSON_GetObjectItemCaseSensitive(json, "rotation"),
@@ -1838,6 +1828,7 @@ void mesh_load(const cJSON *json, Context *context)
 
 	Object *object = malloc(sizeof(Object));
 	object_load(json, context, object, OBJECT_TRIANGLE);
+	err_assert(!object->material->emittant, ERR_JSON_EMITTANT);
 
 	stl_load_objects(context, file, object, position, rotation, scale);
 	fclose(file);
@@ -1997,56 +1988,63 @@ void scene_load(Context *context)
 
 	cJSON *json_materials = cJSON_GetObjectItemCaseSensitive(json, "Materials"),
 		*json_objects = cJSON_GetObjectItemCaseSensitive(json, "Objects"),
-		*json_lights = cJSON_GetObjectItemCaseSensitive(json, "Lights"),
 		*json_camera = cJSON_GetObjectItemCaseSensitive(json, "Camera"),
 		*json_ambient_light = cJSON_GetObjectItemCaseSensitive(json, "AmbientLight");
 
 	err_assert(cJSON_IsObject(json_camera), ERR_JSON_NO_CAMERA);
-	err_assert(cJSON_IsArray(json_lights)
-		&& cJSON_IsArray(json_objects)
+	err_assert(cJSON_IsArray(json_objects)
 		&& cJSON_IsArray(json_materials), ERR_JSON_VALUE_NOT_ARRAY);
 
 	context->camera = camera_load(json_camera, context);
 
 	int num_objects = context->objects_size = cJSON_GetArraySize(json_objects),
-		num_lights = cJSON_GetArraySize(json_lights),
 		num_materials = cJSON_GetArraySize(json_materials);
-	err_assert(num_lights > 0, ERR_JSON_NO_LIGHTS);
 	err_assert(num_objects > 0, ERR_JSON_NO_OBJECTS);
 	err_assert(num_materials > 0, ERR_JSON_NO_MATERIALS);
 	context->objects = malloc(sizeof(Object*) * num_objects);
-	context->lights = malloc(sizeof(Light[num_lights]));
 	context->materials = malloc(sizeof(Material[num_materials]));
 	err_assert(context->objects
-		&& context->lights
 		&& context->materials, ERR_MALLOC);
 
 	if (cJSON_IsArray(json_ambient_light) && cJSON_GetArraySize(json_ambient_light) == 3)
 		cJSON_parse_float_array(json_ambient_light, context->global_ambient_light_intensity);
 
 	cJSON *json_iter;
-#ifdef UNBOUND_OBJECTS
-	size_t num_unbound_objects = 0;
-	cJSON_ArrayForEach (json_iter, json_objects) {
-		err_assert(cJSON_IsObject(json_iter), ERR_JSON_VALUE_NOT_OBJECT);
-		cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json_iter, "type");
-		err_assert(cJSON_IsString(json_type), ERR_JSON_VALUE_NOT_STRING);
-		if (djb_hash(json_type->valuestring) == 232719795)
-			num_unbound_objects++;
-	}
-	if (num_unbound_objects)
-		context->unbound_objects = malloc(sizeof(Object*) * num_unbound_objects);
-#endif /* UNBOUND_OBJECTS */
-
 	cJSON_ArrayForEach (json_iter, json_materials) {
 		err_assert(cJSON_IsObject(json_iter), ERR_JSON_VALUE_NOT_OBJECT);
 		material_load(json_iter, &context->materials[context->num_materials++]);
 	}
 
+#ifdef UNBOUND_OBJECTS
+	size_t num_unbound_objects = 0;
+#endif
+	size_t num_emittant_objects = 0;
 	cJSON_ArrayForEach (json_iter, json_objects) {
+		err_assert(cJSON_IsObject(json_iter), ERR_JSON_VALUE_NOT_OBJECT);
 		cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json_iter, "type"),
 			*json_parameters = cJSON_GetObjectItemCaseSensitive(json_iter, "parameters");
 		err_assert(cJSON_IsObject(json_parameters), ERR_JSON_VALUE_NOT_OBJECT);
+		err_assert(cJSON_IsString(json_type), ERR_JSON_VALUE_NOT_STRING);
+		cJSON *json_material = cJSON_GetObjectItemCaseSensitive(json_parameters, "material");
+		err_assert(cJSON_IsNumber(json_material), ERR_JSON_VALUE_NOT_NUMBER);
+		Material *material = get_material(context, json_material->valueint);
+		if (material->emittant)
+			num_emittant_objects++;
+#ifdef UNBOUND_OBJECTS
+		if (djb_hash(json_type->valuestring) == 232719795)
+			num_unbound_objects++;
+#endif
+	}
+#ifdef UNBOUND_OBJECTS
+	if (num_unbound_objects)
+		context->unbound_objects = malloc(sizeof(Object*) * num_unbound_objects);
+#endif
+	err_assert(num_emittant_objects, ERR_JSON_NO_LIGHTS);
+	context->emittant_objects = malloc(sizeof(Object*) * num_emittant_objects);
+
+	cJSON_ArrayForEach (json_iter, json_objects) {
+		cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json_iter, "type"),
+			*json_parameters = cJSON_GetObjectItemCaseSensitive(json_iter, "parameters");
 		Object *object;
 		switch (djb_hash(json_type->valuestring)) {
 		case 3324768284: /* Sphere */
@@ -2070,12 +2068,9 @@ void scene_load(Context *context)
 		if (!object->object_data->is_bounded)
 			context->unbound_objects[context->num_unbound_objects++] = object;
 #endif
+		if (object->material->emittant)
+			context->emittant_objects[context->num_emittant_objects++] = object;
 		object_add(object, context);
-	}
-
-	cJSON_ArrayForEach (json_iter, json_lights) {
-		err_assert(cJSON_IsObject(json_iter), ERR_JSON_VALUE_NOT_OBJECT);
-		light_load(json_iter,&context->lights[context->num_lights++]);
 	}
 
 	cJSON_Delete(json);
@@ -2099,13 +2094,13 @@ void get_closest_intersection(const Context *context, const Line *ray, Object **
 	bvh_get_closest_intersection(context->bvh, ray, closest_object, closest_normal, closest_distance);
 }
 
-bool is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity)
+bool is_light_blocked(const Context *context, const Line *ray, const float distance, Vec3 light_intensity, const Object *emittant_object)
 {
 #ifdef UNBOUND_OBJECTS
-	return unbound_objects_is_light_blocked(context, ray, distance, light_intensity)
-		|| bvh_is_light_blocked(context->bvh, ray, distance, light_intensity);
+	return unbound_objects_is_light_blocked(context, ray, distance, light_intensity, emittant_object)
+		|| bvh_is_light_blocked(context->bvh, ray, distance, light_intensity, emittant_object);
 #else
-	return bvh_is_light_blocked(context->bvh, ray, distance, light_intensity);
+	return bvh_is_light_blocked(context->bvh, ray, distance, light_intensity, emittant_object);
 #endif
 }
 
@@ -2138,9 +2133,6 @@ void normalize_scene(Context *context)
 
 	for (i = 0; i < context->num_objects; i++)
 		context->objects[i]->object_data->scale(context->objects[i], min, scale_factor);
-
-	for (i = 0; i < context->num_lights; i++)
-		light_scale(&context->lights[i], min, scale_factor);
 
 	camera_scale(context->camera, min, scale_factor);
 }
@@ -2178,66 +2170,76 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	float b = dot3(normal, ray->vector);
 	bool is_outside = signbit(b);
 
-	size_t i;
-	for (i = 0; i < context->num_lights; i++) {
-		Light *light = &context->lights[i];
+	size_t i, j;
+	for (i = 0; i < context->num_emittant_objects; i++) {
+		Object *emittant_object = context->emittant_objects[i];
+		if (emittant_object == object)
+			continue;
+		Vec3 light_intensity;
+		mul3s(emittant_object->material->ke, 1.f / emittant_object->num_lights, light_intensity);
+		for (j = 0; j < emittant_object->num_lights; j++) {
+			Vec3 light_point, incoming_light_intensity;
+			emittant_object->object_data->get_light_point(emittant_object, outgoing_ray.position, light_point);
+			memcpy(incoming_light_intensity, light_intensity, sizeof(Vec3));
 
-		sub3v(light->position, outgoing_ray.position, outgoing_ray.vector);
-		float light_distance = mag3(outgoing_ray.vector);
-		mul3s(outgoing_ray.vector, 1.f / light_distance, outgoing_ray.vector);
+			sub3v(light_point, outgoing_ray.position, outgoing_ray.vector);
+			float light_distance = mag3(outgoing_ray.vector);
+			mul3s(outgoing_ray.vector, 1.f / light_distance, outgoing_ray.vector);
 
-		float a = dot3(outgoing_ray.vector, normal);
+			float a = dot3(outgoing_ray.vector, normal);
 
-		Vec3 incoming_light_intensity;
-		memcpy(incoming_light_intensity, light->intensity, sizeof(Vec3));
-		if (is_outside
-			&& !is_light_blocked(context, &outgoing_ray, light_distance, incoming_light_intensity)) {
+			if (is_outside
+				&& !is_light_blocked(context, &outgoing_ray, light_distance, incoming_light_intensity, emittant_object)) {
 
-			Vec3 distance;
-			sub3v(light->position, outgoing_ray.position, distance);
-			switch (context->light_attenuation) {
-			case LIGHT_ATTENUATION_NONE:
-				break;
-			case LIGHT_ATTENUATION_LINEAR:
-				mul3s(incoming_light_intensity, 1.f / (1.f + mag3(distance)), incoming_light_intensity);
-				break;
-			case LIGHT_ATTENUATION_SQUARE:
-				mul3s(incoming_light_intensity, 1.f / (1.f + magsqr3(distance)), incoming_light_intensity);
-				break;
+				Vec3 distance;
+				sub3v(light_point, outgoing_ray.position, distance);
+				switch (context->light_attenuation) {
+				case LIGHT_ATTENUATION_NONE:
+					break;
+				case LIGHT_ATTENUATION_LINEAR:
+					mul3s(incoming_light_intensity, 1.f / (1.f + mag3(distance)), incoming_light_intensity);
+					break;
+				case LIGHT_ATTENUATION_SQUARE:
+					mul3s(incoming_light_intensity, 1.f / (1.f + magsqr3(distance)), incoming_light_intensity);
+					break;
+				}
+
+				Vec3 diffuse;
+				material->texture->get_color(material->texture, outgoing_ray.position, diffuse);
+				mul3v(diffuse, incoming_light_intensity, diffuse);
+				mul3s(diffuse, fmaxf(0., a), diffuse);
+
+				Vec3 reflected;
+				float specular_mul;
+				switch (context->reflection_model) {
+				case REFLECTION_PHONG:
+					mul3s(normal, 2 * a, reflected);
+					sub3v(reflected, outgoing_ray.vector, reflected);
+					specular_mul = - dot3(reflected, ray->vector);
+					break;
+				case REFLECTION_BLINN:
+					mul3s(outgoing_ray.vector, -1.f, reflected);
+					add3v(reflected, ray->vector, reflected);
+					norm3(reflected);
+					specular_mul = - dot3(normal, reflected);
+					break;
+				}
+				Vec3 specular;
+				mul3v(material->ks, incoming_light_intensity, specular);
+				mul3s(specular, fmaxf(0., powf(specular_mul, material->shininess)), specular);
+
+				add3v3(obj_color, diffuse, specular, obj_color);
 			}
-
-			Vec3 diffuse;
-			material->texture->get_color(material->texture, outgoing_ray.position, diffuse);
-			mul3v(diffuse, incoming_light_intensity, diffuse);
-			mul3s(diffuse, fmaxf(0., a), diffuse);
-
-			Vec3 reflected;
-			float specular_mul;
-			switch (context->reflection_model) {
-			case REFLECTION_PHONG:
-				mul3s(normal, 2 * a, reflected);
-				sub3v(reflected, outgoing_ray.vector, reflected);
-				specular_mul = - dot3(reflected, ray->vector);
-				break;
-			case REFLECTION_BLINN:
-				mul3s(outgoing_ray.vector, -1.f, reflected);
-				add3v(reflected, ray->vector, reflected);
-				norm3(reflected);
-				specular_mul = - dot3(normal, reflected);
-				break;
-			}
-			Vec3 specular;
-			mul3v(material->ks, incoming_light_intensity, specular);
-			mul3s(specular, fmaxf(0., powf(specular_mul, material->shininess)), specular);
-
-			add3v3(obj_color, diffuse, specular, obj_color);
 		}
 	}
 
 	//global illumination
 	switch (context->global_illumination_model) {
-	case GLOBAL_ILLUMINATION_AMBIENT:
-		mul3v(material->ka, context->global_ambient_light_intensity, obj_color);
+	case GLOBAL_ILLUMINATION_AMBIENT: {
+		Vec3 ambient_light;
+		mul3v(material->ka, context->global_ambient_light_intensity, ambient_light);
+		add3v(obj_color, ambient_light, obj_color);
+		}
 		break;
 	case GLOBAL_ILLUMINATION_PATH_TRACING:
 		if (remaining_bounces && is_outside) {
@@ -2253,19 +2255,19 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 				float mul = 1.f / (1.f + dot3((Vec3){0.f, 1.f, 0.f}, normal));
 				Mat3 vx = {
 					{
-						1 - sqr(normal[X]) * mul,
+						1.f - sqr(normal[X]) * mul,
 						normal[X],
 						-normal[X] * normal[Z] * mul,
 					},
 					{
 						-normal[X],
-						1 - (sqr(normal[X]) + sqr(normal[Z])) * mul,
+						1.f - (sqr(normal[X]) + sqr(normal[Z])) * mul,
 						-normal[Z],
 					},
 					{
 						-normal[X] * normal[Z] * mul,
 						normal[Z],
-						1 - sqr(normal[Z]) * mul,
+						1.f - sqr(normal[Z]) * mul,
 					},
 				};
 				memcpy(rotation_matrix, vx, sizeof(Mat3));
@@ -2284,12 +2286,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 			for (i = 0; i < num_samples; i++) {
 				float inclination = acosf(rand_flt() * 2.f - 1.f);
 				float azimuth = rand_flt() * PI;
-				Vec3 apoint = {
-					cosf(azimuth) * sinf(inclination),
-					sinf(azimuth) * sinf(inclination),
-					cosf(inclination),
-				};
-				mulm3(rotation_matrix, apoint, outgoing_ray.vector);
+				mulm3(rotation_matrix, (Vec3)SPHERICAL_TO_CARTESIAN(1, inclination, azimuth), outgoing_ray.vector);
 				mul3s(delta, dot3(normal, outgoing_ray.vector), light_mul);
 				cast_ray(context, &outgoing_ray, light_mul, obj_color, 0, NULL);
 			}

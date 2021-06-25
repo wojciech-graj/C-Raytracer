@@ -13,90 +13,128 @@
 		{
 			"id": 0,
 			"ks": [0.9, 0.9, 0.9],
-			"kd": [0.0, 0.0, 0.0],
 			"ka": [0.3, 0.3, 0.3],
 			"kr": [0.3, 0.3, 0.3],
 			"kt": [0.9, 0.9, 0.9],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 15.0,
-			"refractive_index": 1.48
+			"refractive_index": 1.48,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		},
 		{
 			"id": 1,
 			"ks": [0.2, 0.2, 0.2],
-			"kd": [0.9, 0.9, 0.0],
 			"ka": [1.0, 1.0, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 5.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.9, 0.9, 0.0]
+			}
 		},
 		{
 			"id": 2,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.5, 0.5],
 			"ka": [1.0, 1.0, 1.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.5, 0.5]
+			}
 		},
 		{
 			"id": 3,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.3, 0.3, 0.3],
 			"ka": [0.3, 0.3, 0.3],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.3, 0.3, 0.3]
+			}
 		},
 		{
 			"id": 4,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.0, 0.5, 0.0],
 			"ka": [0.0, 0.5, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.5, 0.0]
+			}
 		},
 		{
 			"id": 5,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.3, 0.3, 0.3],
 			"ka": [0.3, 0.3, 0.3],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.3, 0.3, 0.3]
+			}
 		},
 		{
 			"id": 6,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.0, 0.0, 0.5],
 			"ka": [0.0, 0.0, 0.5],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.5]
+			}
 		},
 		{
 			"id": 7,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.0, 0.0],
 			"ka": [0.5, 0.0, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.0, 0.0]
+			}
+		},
+		{
+			"id": 8,
+			"ks": [0.0, 0.0, 0.0],
+			"ka": [0.5, 0.0, 0.0],
+			"kr": [0.0, 0.0, 0.0],
+			"kt": [0.0, 0.0, 0.0],
+			"ke": [1.0, 1.0, 1.0],
+			"shininess": 0.0,
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		}
 	],
 	"Objects":
@@ -181,13 +219,17 @@
 				"position": [7.0, 0.0, 0.0],
 				"normal": [1.0, 0.0, 0.0]
 			}
-		}
-	],
-	"Lights":
-	[
+		},
 		{
-			"position": [0.0, -10.0, 8.0],
-			"intensity": [1.0, 1.0, 1.0]
+			"type": "Sphere",
+			"parameters":
+			{
+				"material": 8,
+				"epsilon": 0.00025,
+				"position": [0.0, -10.0, 8.0],
+				"radius": 0.5,
+				"lights": 250
+			}
 		}
 	]
 }

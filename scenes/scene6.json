@@ -13,80 +13,88 @@
 		{
 			"id": 0,
 			"ks": [0.3, 0.3, 0.3],
-			"kd": [0.0, 0.0, 0.0],
 			"ka": [0.1, 0.1, 0.1],
 			"kr": [1.0, 1.0, 1.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 35.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		},
 		{
 			"id": 1,
 			"ks": [0.3, 0.3, 0.3],
-			"kd": [0.0, 0.0, 0.0],
 			"ka": [0.1, 0.1, 0.1],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [1.0, 1.0, 1.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 35.0,
-			"refractive_index": 1.5
+			"refractive_index": 1.48,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		},
 		{
 			"id": 2,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.5, 0.5],
 			"ka": [0.5, 0.5, 0.5],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.5, 0.5]
+			}
 		},
 		{
 			"id": 3,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.0, 0.4, 0.0],
 			"ka": [0.0, 0.1, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.0, 0.0]
+			}
+
 		},
 		{
 			"id": 4,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.4, 0.0, 0.0],
 			"ka": [0.1, 0.0, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.5, 0.0]
+			}
 		},
 		{
-			"id": 5,
+			"id": 7,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.0, 0.0, 0.0],
 			"ka": [0.0, 0.0, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
+			"ke": [1.0, 1.0, 1.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 6,
-			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.0, 0.0, 0.0],
-			"ka": [0.0, 0.0, 0.0],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 0.0,
-			"refractive_index": 1.0
-		},
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
+		}
 	],
 	"Objects":
 	[
@@ -134,6 +142,16 @@
 			"type": "Plane",
 			"parameters":
 			{
+				"material": 2,
+				"epsilon": 0.00025,
+				"position": [0.0, -4.0, 0.0],
+				"normal": [0.0, 1.0, 0.0]
+			}
+		},
+		{
+			"type": "Plane",
+			"parameters":
+			{
 				"material": 3,
 				"epsilon": 0.00025,
 				"position": [-3.0, 0.0, 0.0],
@@ -151,31 +169,15 @@
 			}
 		},
 		{
-			"type": "Plane",
+			"type": "Sphere",
 			"parameters":
 			{
-				"material": 5,
-				"epsilon": 0.00025,
-				"position": [0.0, -4.5, 0.0],
-				"normal": [0.0, 1.0, 0.0]
+				"material": 7,
+				"epsilon": 0.0003,
+				"position": [0.0, -3.5, 5.5],
+				"radius": 0.5,
+				"lights": 200
 			}
-		},
-		{
-			"type": "Plane",
-			"parameters":
-			{
-				"material": 6,
-				"epsilon": 0.00025,
-				"position": [0.0, 0.0, -0.5],
-				"normal": [0.0, 0.0, 1.0]
-			}
-		},
-	],
-	"Lights":
-	[
-		{
-			"position": [0.0, -4.0, 5.5],
-			"intensity": [1.0, 1.0, 1.0]
 		}
 	]
 }

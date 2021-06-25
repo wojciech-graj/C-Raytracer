@@ -284,6 +284,8 @@ typedef struct Context {
 	struct timespec start_timespec;
 	clock_t start_clock;
 
+	float light_attenuation_offset;
+	float brightness;
 	Vec3 global_ambient_light_intensity;
 	uint32_t max_bounces;
 	float minimum_light_intensity_sqr;
@@ -891,14 +893,16 @@ Context *context_new(void)
 {
 	Context *context = malloc(sizeof(Context));
 	*context = (Context) {
-			.max_bounces = 10,
-			.minimum_light_intensity_sqr = .01f * .01f,
-			.global_illumination_model = GLOBAL_ILLUMINATION_AMBIENT,
-			.reflection_model = REFLECTION_PHONG,
-			.log_option = LOG_REALTIME,
-			.samples_per_pixel = 1,
-			.normalize_colors = false,
-			.light_attenuation = LIGHT_ATTENUATION_SQUARE,
+		.light_attenuation_offset = 1.f,
+		.brightness = 1.f,
+		.max_bounces = 10,
+		.minimum_light_intensity_sqr = .01f * .01f,
+		.global_illumination_model = GLOBAL_ILLUMINATION_AMBIENT,
+		.reflection_model = REFLECTION_PHONG,
+		.log_option = LOG_REALTIME,
+		.samples_per_pixel = 1,
+		.normalize_colors = false,
+		.light_attenuation = LIGHT_ATTENUATION_SQUARE,
 	};
 	timespec_get(&context->start_timespec, TIME_UTC);
 	context->start_clock = clock();
@@ -1481,11 +1485,10 @@ void object_load(const cJSON *json, const Context *context, Object *object, cons
 		*json_material = cJSON_GetObjectItemCaseSensitive(json, "material"),
 		*json_num_lights = cJSON_GetObjectItemCaseSensitive(json, "lights");
 
-	err_assert(cJSON_IsNumber(json_epsilon)
-		&& cJSON_IsNumber(json_material), ERR_JSON_VALUE_NOT_NUMBER);
+	err_assert(cJSON_IsNumber(json_material), ERR_JSON_VALUE_NOT_NUMBER);
 
 	object->object_data = &OBJECT_DATA[object_type];
-	object->epsilon = json_epsilon->valuedouble;
+	object->epsilon = cJSON_IsNumber(json_epsilon) ? json_epsilon->valuedouble : -1.f;
 	object->material = get_material(context, json_material->valueint);
 	object->num_lights = cJSON_IsNumber(json_num_lights) ? json_num_lights->valueint : 0;
 }
@@ -1541,6 +1544,9 @@ Sphere *sphere_load(const cJSON *json, Context *context)
 	object_load(json, context, (Object*)sphere, OBJECT_SPHERE);
 	cJSON_parse_float_array(json_position, sphere->position);
 	sphere->radius = json_radius->valuedouble;
+
+	if (sphere->object.epsilon == -1.f)
+		sphere->object.epsilon = sphere->radius * 0.0003f;
 
 	return sphere;
 }
@@ -1620,6 +1626,11 @@ void triangle_init(Triangle *triangle)
 	sub3v(triangle->vertices[2], triangle->vertices[0], triangle->edges[1]);
 	cross(triangle->edges[0], triangle->edges[1], triangle->normal);
 	norm3(triangle->normal);
+	if (triangle->object.epsilon == -1.f) {
+		float magab = mag3(triangle->edges[0]) * mag3(triangle->edges[1]);
+		triangle->object.epsilon = 0.003f * powf(0.5f * magab * sinf(acosf(dot3(triangle->edges[0], triangle->edges[1]) / magab)), 0.75f);
+	}//TODO: improve this
+
 }
 
 void triangle_delete(Object *object)
@@ -2197,10 +2208,10 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 				case LIGHT_ATTENUATION_NONE:
 					break;
 				case LIGHT_ATTENUATION_LINEAR:
-					mul3s(incoming_light_intensity, 1.f / (1.f + mag3(distance)), incoming_light_intensity);
+					mul3s(incoming_light_intensity, 1.f / (context->light_attenuation_offset + mag3(distance)), incoming_light_intensity);
 					break;
 				case LIGHT_ATTENUATION_SQUARE:
-					mul3s(incoming_light_intensity, 1.f / (1.f + magsqr3(distance)), incoming_light_intensity);
+					mul3s(incoming_light_intensity, 1.f / (context->light_attenuation_offset + magsqr3(distance)), incoming_light_intensity);
 					break;
 				}
 
@@ -2299,10 +2310,10 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	case LIGHT_ATTENUATION_NONE:
 		break;
 	case LIGHT_ATTENUATION_LINEAR:
-		mul3s(obj_color, 1.f / (1.f + min_distance), obj_color);
+		mul3s(obj_color, 1.f / (context->light_attenuation_offset + min_distance), obj_color);
 		break;
 	case LIGHT_ATTENUATION_SQUARE:
-		mul3s(obj_color, 1.f / sqr(1.f + min_distance), obj_color);
+		mul3s(obj_color, 1.f / sqr(context->light_attenuation_offset + min_distance), obj_color);
 		break;
 	}
 	add3v(color, obj_color, color);
@@ -2373,6 +2384,7 @@ void create_image(const Context *context)
 
 	size_t image_size = camera->image.resolution[Y] * camera->image.resolution[X];
 	size_t i;
+	float slope = context->brightness;
 	if (context->normalize_colors) {
 		float min = FLT_MAX, max = FLT_MIN;
 		for (i = 0; i < image_size; i++) {
@@ -2384,15 +2396,15 @@ void create_image(const Context *context)
 				max = pixel_max;
 		}
 
-		float slope = 1.f / (max - min);
+		slope /= (max - min);
 
 		for (i = 0; i < image_size; i++) {
 			sub3s(raw_pixels[i], min, raw_pixels[i]);
-			mul3s(raw_pixels[i], slope, raw_pixels[i]);
 		}
 	}
 
 	for (i = 0; i < image_size; i++) {
+		mul3s(raw_pixels[i], slope, raw_pixels[i]);
 		uint8_t *pixel = camera->image.pixels[i];
 		pixel[0] = (uint8_t)fmaxf(fminf(raw_pixels[i][0] * 255.f, 255.f), 0.f);
 		pixel[1] = (uint8_t)fmaxf(fminf(raw_pixels[i][1] * 255.f, 255.f), 0.f);
@@ -2489,6 +2501,9 @@ void process_arguments(int argc, char *argv[], Context *context)
 					err(ERR_ARGV_LIGHT_ATTENUATION);
 				}
 				break;
+			case 5859047://-o
+				context->light_attenuation_offset = atof(argv[i + 1]);
+				break;
 			case 5859064://-p
 				switch (djb_hash(argv[i + 1])) {
 				case 2087865487://none
@@ -2501,6 +2516,9 @@ void process_arguments(int argc, char *argv[], Context *context)
 					context->log_option = LOG_CPUTIME;
 					break;
 				}
+				break;
+			case 5859041://-i
+				context->brightness = atof(argv[i + 1]);
 				break;
 			default:
 				err(ERR_ARGV_UNRECOGNIZED);

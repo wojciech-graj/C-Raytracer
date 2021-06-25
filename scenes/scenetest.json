@@ -121,10 +121,35 @@
 				"type": "uniform",
 				"color": [0.0, 0.0, 0.5]
 			}
+		},
+		{
+			"id": 8,
+			"ks": [0.0, 0.0, 0.0],
+			"ka": [0.0, 0.0, 0.0],
+			"kr": [0.0, 0.0, 0.0],
+			"kt": [0.0, 0.0, 0.0],
+			"ke": [1.0, 1.0, 1.0],
+			"shininess": 1.0,
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		}
 	],
 	"Objects":
 	[
+		{
+			"type": "Sphere",
+			"parameters":
+			{
+				"material": 8,
+				"epsilon": 0.0001,
+				"position": [1.0, -2.0, -0.5],
+				"radius": 1.0,
+				"lights": 20
+			}
+		},
 		{
 			"type": "Sphere",
 			"parameters":
@@ -208,12 +233,5 @@
 			}
 		}
 
-	],
-	"Lights":
-	[
-		{
-			"position": [1.0, -2.0, 2.0],
-			"intensity": [1.0, 1.0, 1.0]
-		}
 	]
 }

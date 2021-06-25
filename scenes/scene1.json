@@ -13,46 +13,72 @@
 		{
 			"id": 0,
 			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.5, 0.5, 0.0],
 			"ka": [0.5, 0.5, 0.0],
 			"kr": [0.6, 0.6, 0.6],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 15.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.5, 0.0]
+			}
 		},
 		{
 			"id": 1,
 			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.0, 0.5, 0.5],
 			"ka": [0.0, 0.5, 0.5],
 			"kr": [0.6, 0.6, 0.6],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 15.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.5, 0.5]
+			}
 		},
 		{
 			"id": 2,
 			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.5, 0.0, 0.5],
 			"ka": [0.5, 0.0, 0.5],
 			"kr": [0.6, 0.6, 0.6],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 15.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.0, 0.5]
+			}
 		},
 		{
 			"id": 3,
 			"ks": [0.9, 0.9, 0.9],
-			"kd": [0.0, 0.0, 0.5],
-			"ka": [0.0, 0.0, 3.0],
+			"ka": [0.0, 0.0, 0.0],
 			"kr": [0.6, 0.6, 0.6],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 15.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.2, 0.2, 0.2]
+			}
+		},
+		{
+			"id": 4,
+			"ks": [0.0, 0.0, 0.0],
+			"ka": [0.0, 0.0, 0.0],
+			"kr": [0.0, 0.0, 0.0],
+			"kt": [0.0, 0.0, 0.0],
+			"ke": [1.0, 1.0, 1.0],
+			"shininess": 1.0,
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		}
 	],
 	"Objects":
@@ -62,7 +88,7 @@
 			"parameters":
 			{
 				"material": 0,
-				"epsilon": 0.0001,
+				"epsilon": 0.0008,
 				"position": [0.0, -3.0, 9.0],
 				"radius": 3.0
 			}
@@ -72,7 +98,7 @@
 			"parameters":
 			{
 				"material": 1,
-				"epsilon": 0.0001,
+				"epsilon": 0.0002,
 				"position": [4.0, -1.5, 5.0],
 				"radius": 1.5
 			}
@@ -82,7 +108,7 @@
 			"parameters":
 			{
 				"material": 2,
-				"epsilon": 0.0001,
+				"epsilon": 0.0002,
 				"position": [-4.0, -0.8, 5.0],
 				"radius": 0.8
 			}
@@ -92,17 +118,21 @@
 			"parameters":
 			{
 				"material": 3,
-				"epsilon": 0.0001,
+				"epsilon": 0.002,
 				"position": [0.0, 0.0, 0.0],
 				"normal": [0.0, 1.0, 0.0]
 			}
-		}
-	],
-	"Lights":
-	[
+		},
 		{
-			"position": [8.0, -20.0, 2.0],
-			"intensity": [1.0, 1.0, 1.0]
+			"type": "Sphere",
+			"parameters":
+			{
+				"material": 4,
+				"epsilon": 0.0001,
+				"position": [4.0, -10.0, 1.0],
+				"radius": 0.5,
+				"lights": 200
+			}
 		}
 	]
 }

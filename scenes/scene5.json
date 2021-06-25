@@ -2,7 +2,7 @@
 	"AmbientLight": [0.1, 0.1, 0.1],
 	"Camera":
 	{
-		"position": [0.0, -2.5, -1.5],
+		"position": [0.0, -2.8, -0.7],
 		"vector_x": [1.0, 0.0, 0.0],
 		"vector_y": [0.0, 1.0, -0.25],
 		"fov": 90,
@@ -12,246 +12,58 @@
 	[
 		{
 			"id": 0,
-			"ks": [0.1, 0.1, 0.1],
-			"kd": [0.5, 0.5, 0.0],
-			"ka": [0.5, 0.5, 0.0],
+			"ks": [0.0, 0.0, 0.0],
+			"ka": [0.0, 0.0, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
-			"shininess": 10.0,
-			"refractive_index": 1.0
+			"shininess": 0.0,
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "checkerboard",
+				"scale": 5.0,
+				"colors": [
+					[0.1, 0.1, 0.1],
+					[0.8, 0.8, 0.8]
+				]
+			}
 		},
 		{
 			"id": 1,
-			"ks": [0.1, 0.1, 0.1],
-			"kd": [0.0, 0.5, 0.5],
-			"ka": [0.0, 0.5, 0.5],
+			"ks": [0.3, 0.3, 0.3],
+			"ka": [0.0, 0.0, 0.0],
 			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
+			"kt": [0.32, 0.95, 0.60],
 			"ke": [0.0, 0.0, 0.0],
-			"shininess": 10.0,
-			"refractive_index": 1.0
+			"shininess": 5.0,
+			"refractive_index": 1.48,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		},
 		{
 			"id": 2,
-			"ks": [0.1, 0.1, 0.1],
-			"kd": [0.5, 0.0, 0.5],
-			"ka": [0.5, 0.0, 0.5],
+			"ks": [0.0, 0.0, 0.0],
+			"ka": [0.0, 0.0, 0.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
+			"ke": [1.0, 1.0, 1.0],
 			"shininess": 10.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 3,
-			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.0, 0.0, 0.0],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.9, 0.9, 0.9],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 50.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 4,
-			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.0, 0.0, 0.0],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.9, 0.9, 0.9],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 50.0,
-			"refractive_index": 1.2
-		},
-		{
-			"id": 5,
-			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.0, 0.0, 0.0],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.9, 0.9, 0.9],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 50.0,
-			"refractive_index": 1.4
-		},
-		{
-			"id": 6,
-			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.0, 0.0, 0.0],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.9, 0.9, 0.9],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 50.0,
-			"refractive_index": 1.6
-		},
-		{
-			"id": 7,
-			"ks": [0.7, 0.7, 0.7],
-			"kd": [0.0, 0.0, 0.0],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.9, 0.9, 0.9],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 50.0,
-			"refractive_index": 1.8
-		},
-		{
-			"id": 8,
-			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.5, 0.5],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 0.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 9,
-			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.5, 0.5],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 0.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 10,
-			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.0, 0.0, 0.5],
-			"ka": [0.0, 0.0, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 0.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 11,
-			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.0, 0.5, 0.0],
-			"ka": [0.0, 0.5, 0.0],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 0.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 12,
-			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.0, 0.0],
-			"ka": [0.5, 0.0, 0.0],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 0.0,
-			"refractive_index": 1.0
-		},
-		{
-			"id": 13,
-			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.5, 0.5],
-			"ka": [0.5, 0.5, 0.5],
-			"kr": [0.0, 0.0, 0.0],
-			"kt": [0.0, 0.0, 0.0],
-			"ke": [0.0, 0.0, 0.0],
-			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.42,
+			"texture": {
+				"type": "uniform",
+				"color": [0, 0, 0]
+			}
 		}
 	],
 	"Objects":
 	[
 		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 0,
-				"epsilon": 0.0001,
-				"position": [-3.0, -1.0, 10.0],
-				"radius": 1.0
-			}
-		},
-		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 1,
-				"epsilon": 0.0001,
-				"position": [0.0, -1.0, 10.0],
-				"radius": 1.0
-			}
-		},
-		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 2,
-				"epsilon": 0.0001,
-				"position": [3.0, -1.0, 10.0],
-				"radius": 1.0
-			}
-		},
-		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 3,
-				"epsilon": 0.0001,
-				"position": [-5.0, -1.0, 5.0],
-				"radius": 1.0
-			}
-		},
-		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 4,
-				"epsilon": 0.0001,
-				"position": [-2.5, -1.0, 5.0],
-				"radius": 1.0
-			}
-		},
-		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 5,
-				"epsilon": 0.0001,
-				"position": [0.0, -1.0, 5.0],
-				"radius": 1.0
-			}
-		},
-		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 6,
-				"epsilon": 0.0001,
-				"position": [2.5, -1.0, 5.0],
-				"radius": 1.0
-			}
-		},
-		{
-			"type": "Sphere",
-			"parameters":
-			{
-				"material": 7,
-				"epsilon": 0.0001,
-				"position": [5.0, -1.0, 5.0],
-				"radius": 1.0
-			}
-		},
-		{
 			"type": "Plane",
 			"parameters":
 			{
-				"material": 8,
+				"material": 0,
 				"epsilon": 0.0001,
 				"position": [0.0, 0.0, 0.0],
 				"normal": [0.0, 1.0, 0.0]
@@ -261,58 +73,33 @@
 			"type": "Plane",
 			"parameters":
 			{
-				"material": 9,
+				"material": 0,
 				"epsilon": 0.0001,
-				"position": [0.0, -15.0, 0.0],
-				"normal": [0.0, 1.0, 0.0]
-			}
-		},
-		{
-			"type": "Plane",
-			"parameters":
-			{
-				"material": 10,
-				"epsilon": 0.0001,
-				"position": [0.0, 0.0, 20.0],
+				"position": [0.0, 0.0, 6.0],
 				"normal": [0.0, 0.0, 1.0]
 			}
 		},
 		{
-			"type": "Plane",
+			"type": "Mesh",
 			"parameters":
 			{
-				"material": 11,
-				"epsilon": 0.0001,
-				"position": [-10.0, 0.0, 0.0],
-				"normal": [1.0, 0.0, 0.0]
+				"material": 1,
+				"filename": "meshes/dragon.stl",
+				"position": [0, -2, 3],
+				"rotation": [1.57, 0.0, 0.0],
+				"scale": 0.1
 			}
 		},
 		{
-			"type": "Plane",
+			"type": "Sphere",
 			"parameters":
 			{
-				"material": 12,
-				"epsilon": 0.0001,
-				"position": [10.0, 0.0, 0.0],
-				"normal": [1.0, 0.0, 0.0]
+				"material": 2,
+				"epsilon": 0.0003,
+				"position": [-7.5, -4.0, 5.0],
+				"radius": 0.5,
+				"lights": 300
 			}
-		},
-		{
-			"type": "Plane",
-			"parameters":
-			{
-				"material": 13,
-				"epsilon": 0.0001,
-				"position": [0.0, 0.0, -10.0],
-				"normal": [0.0, 0.0, 1.0]
-			}
-		}
-	],
-	"Lights":
-	[
-		{
-			"position": [0.0, -9.0, -2.0],
-			"intensity": [1.0, 1.0, 1.0]
 		}
 	]
 }

@@ -2,7 +2,7 @@
 	"AmbientLight": [0.1, 0.1, 0.1],
 	"Camera":
 	{
-		"position": [0.0, -8.0, 5.0],
+		"position": [0.0, -9.5, 4.0],
 		"vector_x": [1.0, 0.0, 0.0],
 		"vector_y": [0.0, 1.0, -0.6],
 		"fov": 90,
@@ -13,35 +13,63 @@
 		{
 			"id": 0,
 			"ks": [0.0, 0.0, 0.0],
-			"kd": [0.5, 0.5, 0.5],
 			"ka": [1.0, 1.0, 1.0],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 0.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.5, 0.5]
+			}
 		},
 		{
 			"id": 1,
 			"ks": [0.9, 0.9, 0.9],
-			"kd": [1.0, 0.9, 0.75],
 			"ka": [0.5, 0.5, 0.5],
 			"kr": [0.0, 0.0, 0.0],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
-			"shininess": 20.0,
-			"refractive_index": 1.0
+			"shininess": 10.0,
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "noisy periodic",
+				"color": [0.72, 0.77, 0.77],
+				"color gradient": [-0.22, -0.27, -0.27],
+				"noise feature scale": 3.5,
+				"noise scale": 1,
+				"frequency scale": 10,
+				"function": "sin"
+			}
 		},
 		{
 			"id": 2,
 			"ks": [0.9, 0.9, 0.9],
-			"kd": [0.5, 0.5, 0.5],
 			"ka": [0.5, 0.5, 0.5],
 			"kr": [0.9, 0.9, 0.9],
 			"kt": [0.0, 0.0, 0.0],
 			"ke": [0.0, 0.0, 0.0],
 			"shininess": 20.0,
-			"refractive_index": 1.0
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.5, 0.5, 0.5]
+			}
+		},
+		{
+			"id": 3,
+			"ks": [0.0, 0.0, 0.0],
+			"ka": [0.0, 0.0, 0.0],
+			"kr": [0.0, 0.0, 0.0],
+			"kt": [0.0, 0.0, 0.0],
+			"ke": [1.0, 1.0, 1.0],
+			"shininess": 1.0,
+			"refractive_index": 1.0,
+			"texture": {
+				"type": "uniform",
+				"color": [0.0, 0.0, 0.0]
+			}
 		}
 	],
 	"Objects":
@@ -61,11 +89,10 @@
 			"parameters":
 			{
 				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [-6.0, -3.0, 10.0],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
+				"filename": "meshes/pillars/greekcolumn.stl",
+				"position": [5.3, -3.1, 17.1],
+				"rotation": [-1.57, 0.0, 0.0],
+				"scale": 0.04
 			}
 		},
 		{
@@ -75,7 +102,7 @@
 				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Tetrahedron.stl",
-				"position": [-4.3, -4.0, 10.6],
+				"position": [-4.0, -3.85, 10.6],
 				"rotation": [0.0, 0.0, 0.0],
 				"scale": 0.14
 			}
@@ -85,11 +112,10 @@
 			"parameters":
 			{
 				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [-1.5, -3.0, 10.0],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
+				"filename": "meshes/pillars/greekcolumn.stl",
+				"position": [9.33, -3.1, 17.1],
+				"rotation": [-1.57, 0.0, 0.0],
+				"scale": 0.04
 			}
 		},
 		{
@@ -99,7 +125,7 @@
 				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Hexahedron.stl",
-				"position": [-0.0, -4.1, 11.2],
+				"position": [-0.0, -4.0, 11.2],
 				"rotation": [0.0, 0.0, 0.0],
 				"scale": 0.15
 			}
@@ -109,11 +135,10 @@
 			"parameters":
 			{
 				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [3.0, -3.0, 10.0],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
+				"filename": "meshes/pillars/greekcolumn.stl",
+				"position": [13.4, -3.1, 17.1],
+				"rotation": [-1.57, 0.0, 0.0],
+				"scale": 0.04
 			}
 		},
 		{
@@ -123,7 +148,7 @@
 				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Octahedron.stl",
-				"position": [4.3, -4.4, 11.2],
+				"position": [4.0, -4.4, 11.2],
 				"rotation": [0.0, 0.0, 0.0],
 				"scale": 0.13
 			}
@@ -133,23 +158,10 @@
 			"parameters":
 			{
 				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [3.0, -3.0, 14.5],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
-			}
-		},
-		{
-			"type": "Mesh",
-			"parameters":
-			{
-				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [3.0, -4.5, 14.5],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
+				"filename": "meshes/pillars/Pillar_-_Square_with_Large_Brick.stl",
+				"position": [4.0, -6.0, 15.0],
+				"rotation": [-1.57, 0.0, 0.0],
+				"scale": 0.10
 			}
 		},
 		{
@@ -159,7 +171,7 @@
 				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Icosahedron.stl",
-				"position": [4.2, -5.7, 15.8],
+				"position": [4.0, -7.2, 15.0],
 				"rotation": [0.0, 0.0, 0.2],
 				"scale": 0.13
 			}
@@ -169,23 +181,10 @@
 			"parameters":
 			{
 				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [-1.5, -3.0, 14.5],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
-			}
-		},
-		{
-			"type": "Mesh",
-			"parameters":
-			{
-				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [-1.5, -4.5, 14.5],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
+				"filename": "meshes/pillars/Pillar_-_Square_with_Large_Brick.stl",
+				"position": [0.0, -6.0, 15.0],
+				"rotation": [-1.57, 0.0, 0.0],
+				"scale": 0.10
 			}
 		},
 		{
@@ -193,11 +192,10 @@
 			"parameters":
 			{
 				"material": 2,
-				"epsilon": 0.00001,
 				"filename": "meshes/utah_teapot.stl",
-				"position": [-0.0, -5.3, 14.0],
+				"position": [-0.0, -6.0, 15.0],
 				"rotation": [1.57079, 0.0, 0.0],
-				"scale": 0.21
+				"scale": 0.25
 			}
 		},
 		{
@@ -205,23 +203,10 @@
 			"parameters":
 			{
 				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [-6.0, -3.0, 14.5],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
-			}
-		},
-		{
-			"type": "Mesh",
-			"parameters":
-			{
-				"material": 1,
-				"epsilon": 0.00003,
-				"filename": "meshes/shapes/cube.stl",
-				"position": [-6.0, -4.5, 14.5],
-				"rotation": [0.0, 0.0, 0.0],
-				"scale": 0.1
+				"filename": "meshes/pillars/Pillar_-_Square_with_Large_Brick.stl",
+				"position": [-4.0, -6.0, 15.0],
+				"rotation": [-1.57, 0.0, 0.0],
+				"scale": 0.10
 			}
 		},
 		{
@@ -231,17 +216,21 @@
 				"material": 2,
 				"epsilon": 0.00003,
 				"filename": "meshes/platonic_solids/Dodecahedron.stl",
-				"position": [-4.3, -5.7, 15.6],
+				"position": [-4.0, -7.3, 15.6],
 				"rotation": [0.0, 0.0, 0.0],
 				"scale": 0.13
 			}
-		}
-	],
-	"Lights":
-	[
+		},
 		{
-			"position": [0.2, -10.0, 8.6],
-			"intensity": [1.0, 1.0, 1.0]
+			"type": "Sphere",
+			"parameters":
+			{
+				"material": 3,
+				"epsilon": 0.0003,
+				"position": [0.0, -5.0, 4.0],
+				"radius": 1.0,
+				"lights": 200
+			}
 		}
 	]
 }

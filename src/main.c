@@ -45,7 +45,7 @@
 
 #ifdef MULTITHREADING
 #include <omp.h>
-uint32_t NUM_THREADS = 1;
+int NUM_THREADS = 1;
 #endif
 
 #define clz __builtin_clz
@@ -53,12 +53,15 @@ uint32_t NUM_THREADS = 1;
 #define PI 3.1415927f
 #define MATERIAL_THRESHOLD 1e-6f
 
+#define likely(x)       __builtin_expect((x), true)
+#define unlikely(x)     __builtin_expect((x), false)
+
 /* ERROR */
 #define err_assert(expr, err_code)\
 	do {\
-		if(!(expr))\
+		if (unlikely(!(expr)))\
 			err(err_code);\
-	} while(false)
+	} while (false)
 
 #define SPHERICAL_TO_CARTESIAN(radius, inclination, azimuth)\
 	{radius * cosf(azimuth) * sinf(inclination),\
@@ -477,6 +480,8 @@ float rand_flt(void);
 bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 bool line_intersects_sphere(const Vec3 sphere_position, const float sphere_radius, const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance);
 uint32_t djb_hash(const char* cp);
+uint32_t expand_bits(uint32_t num);
+uint32_t morton_code(const Vec3 vec);
 
 /* Context */
 Context *context_new(void);
@@ -757,9 +762,9 @@ float min3(const Vec3 vec)
 {
     float min = vec[0];
     if (min > vec[1])
-    	min = vec[1];
+	min = vec[1];
     if (min > vec[2])
-    	min = vec[2];
+	min = vec[2];
     return min;
 }
 
@@ -768,9 +773,9 @@ float max3(const Vec3 vec)
 {
     float max = vec[0];
     if (max < vec[1])
-    	max = vec[1];
+	max = vec[1];
     if (max < vec[2])
-    	max = vec[2];
+	max = vec[2];
     return max;
 }
 
@@ -808,33 +813,27 @@ void mulms(Mat3 mat, const float mul, Mat3 result)
 	mul3s(mat[Z], mul, result[Z]);
 }
 
-void addmat(Mat3 mat1, Mat3 mat2, Mat3 result)
-{
-	add3v(mat1[X], mat2[X], result[X]);
-	add3v(mat1[Y], mat2[Y], result[Y]);
-	add3v(mat1[Z], mat2[Z], result[Z]);
-}
-
 float rand_flt(void)
 {
-	return rand() / (float) RAND_MAX;
+	return rand() / (float)RAND_MAX;
 }
 
 //Möller–Trumbore intersection algorithm
 bool moller_trumbore(const Vec3 vertex, Vec3 edges[2], const Vec3 line_position, const Vec3 line_vector, const float epsilon, float *distance)
 {
+	float a, f, u, v;
 	Vec3 h, s, q;
 	cross(line_vector, edges[1], h);
-	float a = dot3(edges[0], h);
-	if (a < epsilon && a > -epsilon) //ray is parallel to line
+	a = dot3(edges[0], h);
+	if (unlikely(a < epsilon && a > -epsilon)) //ray is parallel to line
 		return false;
-	float f = 1.f / a;
+	f = 1.f / a;
 	sub3v(line_position, vertex, s);
-	float u = f * dot3(s, h);
+	u = f * dot3(s, h);
 	if (u < 0.f || u > 1.f)
 		return false;
 	cross(s, edges[0], q);
-	float v = f * dot3(line_vector, q);
+	v = f * dot3(line_vector, q);
 	if (v < 0.f || u + v > 1.f)
 		return false;
 	*distance = f * dot3(edges[1], q);
@@ -845,16 +844,16 @@ bool line_intersects_sphere(const Vec3 sphere_position, const float sphere_radiu
 {
 	Vec3 relative_position;
 	sub3v(line_position, sphere_position, relative_position);
-	float b = -2 * dot3(line_vector, relative_position);
+	float b = -dot3(line_vector, relative_position);
 	float c = dot3(relative_position, relative_position) - sqr(sphere_radius);
-	float determinant = sqr(b) - 4 * c;
-	if (determinant < 0) //no collision
+	float det = sqr(b) - c;
+	if (det < 0) //no collision
 		return false;
-	float sqrt_determinant = sqrtf(determinant);
-	*distance = (b - sqrt_determinant) * .5f;
+	float sqrt_det = sqrtf(det);
+	*distance = b - sqrt_det;
 	if (*distance > epsilon)//if in front of origin of ray
 		return true;
-	*distance = (b + sqrt_determinant) * .5f;
+	*distance = b + sqrt_det;
 	return *distance > epsilon; //check if the further distance is positive
 }
 
@@ -870,18 +869,18 @@ uint32_t djb_hash(const char* cp)
 //Expands a number to only use 1 in every 3 bits
 uint32_t expand_bits(uint32_t num)
 {
-    num = (num * 0x00010001u) & 0xFF0000FFu;
-    num = (num * 0x00000101u) & 0x0F00F00Fu;
-    num = (num * 0x00000011u) & 0xC30C30C3u;
-    num = (num * 0x00000005u) & 0x49249249u;
-    return num;
+	num = (num * 0x00010001u) & 0xFF0000FFu;
+	num = (num * 0x00000101u) & 0x0F00F00Fu;
+	num = (num * 0x00000011u) & 0xC30C30C3u;
+	num = (num * 0x00000005u) & 0x49249249u;
+	return num;
 }
 
 //Calcualtes 30-bit morton code for a point in cube [0,1]. Does not perform bounds checking
 uint32_t morton_code(const Vec3 vec)
 {
-	return expand_bits((uint32_t)(1023.f * vec[X])) * 4
-		+ expand_bits((uint32_t)(1023.f * vec[Y])) * 2
+	return expand_bits((uint32_t)(1023.f * vec[X])) * 4u
+		+ expand_bits((uint32_t)(1023.f * vec[Y])) * 2u
 		+ expand_bits((uint32_t)(1023.f * vec[Z]));
 }
 
@@ -1012,7 +1011,7 @@ void camera_scale(Camera *camera, const Vec3 neg_shift, const float scale)
 
 void save_image(FILE *file, const Image *image)
 {
-	err_assert(fprintf(file, "P6\n%d %d\n255\n", image->resolution[X], image->resolution[Y]) > 0, ERR_IO_WRITE_IMG);
+	err_assert(fprintf(file, "P6\n%u %u\n255\n", image->resolution[X], image->resolution[Y]) > 0, ERR_IO_WRITE_IMG);
 	size_t num_pixels = image->resolution[X] * image->resolution[Y];
 	err_assert(fwrite(image->pixels, sizeof(Color), num_pixels, file) == num_pixels, ERR_IO_WRITE_IMG);
 }
@@ -1233,7 +1232,7 @@ void bvh_print(const BVH *bvh, const uint32_t depth)
 		printf("%s\n", bvh->children[0].object->object_data->name);
 	} else {
 		printf("NODE\n");
-		for(j = 0; j < 2; j++)
+		for (j = 0; j < 2; j++)
 			bvh_print(bvh->children[j].bvh, depth + 1);
 	}
 }
@@ -1488,7 +1487,7 @@ void object_load(const cJSON *json, const Context *context, Object *object, cons
 	err_assert(cJSON_IsNumber(json_material), ERR_JSON_VALUE_NOT_NUMBER);
 
 	object->object_data = &OBJECT_DATA[object_type];
-	object->epsilon = cJSON_IsNumber(json_epsilon) ? json_epsilon->valuedouble : -1.f;
+	object->epsilon = cJSON_IsNumber(json_epsilon) ? (float)json_epsilon->valuedouble : -1.f;
 	object->material = get_material(context, json_material->valueint);
 	object->num_lights = cJSON_IsNumber(json_num_lights) ? json_num_lights->valueint : 0;
 }
@@ -1986,9 +1985,9 @@ void cJSON_parse_float_array(const cJSON *json, float *array)
 void scene_load(Context *context)
 {
 	fseek(context->scene_file, 0, SEEK_END);
-  	size_t length = ftell(context->scene_file);
-  	fseek(context->scene_file, 0, SEEK_SET);
-  	char *buffer = malloc(length + 1);
+	size_t length = ftell(context->scene_file);
+	fseek(context->scene_file, 0, SEEK_SET);
+	char *buffer = malloc(length + 1);
 	err_assert(buffer, ERR_MALLOC);
 	err_assert(fread(buffer, 1, length, context->scene_file) == length, ERR_JSON_IO_READ);
 	buffer[length] = '\0';
@@ -2318,7 +2317,7 @@ void cast_ray(const Context *context, const Line *ray, const Vec3 kr, Vec3 color
 	}
 	add3v(color, obj_color, color);
 
-	if(!remaining_bounces)
+	if (!remaining_bounces)
 		return;
 
 	//reflection
@@ -2579,6 +2578,4 @@ int main(int argc, char *argv[])
 	log_msg(context, "SAVED IMAGE.");
 
 	context_delete(context);
-
-	log_msg(context, "TERMINATED PROGRAM.");
 }

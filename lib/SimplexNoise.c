@@ -4,6 +4,8 @@
 
 #define hash(i) perm[(uint8_t)(i)]
 
+float grad(int32_t hash, float x, float y, float z);
+
 /**
  * Permutation table. This is just a random jumble of all numbers 0-255.
  *

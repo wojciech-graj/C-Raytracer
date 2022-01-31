@@ -21,10 +21,6 @@
 * 		Denoising
 *	Optimization:
 *		Consider LOD
-*	Other:
-*		Documentation
-*		Port scenes to new format
-*		Update readme gallery after resolving Lighting
 */
 
 #include <float.h>
@@ -36,8 +32,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "../lib/cJSON.h"
-#include "../lib/SimplexNoise.h"
+#include "cJSON/cJSON.h"
+#include "SimplexNoise/SimplexNoise.h"
 
 /*******************************************************************************
 *	MACRO
@@ -61,7 +57,7 @@ int NUM_THREADS = 1;
 	do {\
 		if (unlikely(!(expr)))\
 			err(err_code);\
-	} while (false)
+	} while (0)
 
 #define SPHERICAL_TO_CARTESIAN(radius, inclination, azimuth)\
 	{radius * cosf(azimuth) * sinf(inclination),\

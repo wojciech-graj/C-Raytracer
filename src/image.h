@@ -13,26 +13,23 @@
 #define __IMAGE_H__
 
 #include "type.h"
-#include "calc.h"
-
-#include <stdint.h>
 
 typedef uint8_t Color[3];
 
-typedef struct _Image {
+struct Image {
 	uint32_t resolution[2];
-	Vec2 size;
-	Vec3 corner; //Top left corner of image
-	Vec3 vectors[2]; //Vectors for image plane traversal by 1 pixel in X and Y directions
+	v2 size;
+	v3 corner; //Top left corner of image
+	v3 vectors[2]; //Vectors for image plane traversal by 1 pixel in X and Y directions
 	Color *pixels;
-} Image;
+};
 
 void image_init(void);
 void image_deinit(void);
 
-void image_scale(const Vec3 neg_shift, float scale);
+void image_scale(const v3 neg_shift, float scale);
 void save_image(void);
 
-Image image;
+extern struct Image image;
 
 #endif /* __IMAGE_H__ */

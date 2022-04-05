@@ -14,9 +14,7 @@
 
 #include "type.h"
 
-#include <stdint.h>
-
-enum _Argv {
+enum Argv {
 	ARG_INPUT_FILENAME = 1,
 	ARG_OUTPUT_FILENAME = 2,
 	ARG_RESOLUTION_X = 3,

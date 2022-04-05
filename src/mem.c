@@ -11,7 +11,6 @@
 
 #include "mem.h"
 #include "error.h"
-#include "type.h"
 
 void *safe_malloc(const size_t size)
 {

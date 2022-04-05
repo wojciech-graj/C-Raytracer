@@ -10,11 +10,12 @@
  **/
 
 #include "camera.h"
+#include "calc.h"
 #include "error.h"
 
-Camera camera;
+struct Camera camera;
 
-void camera_init(const Vec3 position, Vec3 vectors[2], const float fov, const float focal_length)
+void camera_init(const v3 position, v3 vectors[2], const float fov, const float focal_length)
 {
 	printf_log("Initializing camera.");
 
@@ -23,14 +24,14 @@ void camera_init(const Vec3 position, Vec3 vectors[2], const float fov, const fl
 	camera.fov = fov;
 	camera.focal_length = focal_length;
 
-	memcpy(camera.position, position, sizeof(Vec3));
-	memcpy(camera.vectors, vectors, sizeof(Vec3) * 2);
+	memcpy(camera.position, position, sizeof(v3));
+	memcpy(camera.vectors, vectors, sizeof(v3) * 2);
 	norm3(camera.vectors[0]);
 	norm3(camera.vectors[1]);
 	cross(camera.vectors[0], camera.vectors[1], camera.vectors[2]);
 }
 
-void camera_scale(const Vec3 neg_shift, const float scale)
+void camera_scale(const v3 neg_shift, const float scale)
 {
 	sub3v(camera.position, neg_shift, camera.position);
 	mul3s(camera.position, scale, camera.position);

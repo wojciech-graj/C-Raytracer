@@ -13,5 +13,6 @@
 #define __SCENE_H__
 
 void scene_load(void);
+void scene_scale(float scale_factor);
 
 #endif /* __SCENE_H__ */

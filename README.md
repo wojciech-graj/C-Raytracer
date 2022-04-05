@@ -1,14 +1,18 @@
 # Raytracing Engine
 
-This is a program which can generate an image using a relatively realistic simulation of light rays and their interactions with various objects.
+A raytracer used to render images using a relatively realistic simulation of light rays and their interactions with various objects.
 
 #### Features
-- Shadows
+- Soft Shadows
 - Reflection
 - Refraction
-- Global illumination
+- Global illumination using Path Tracing
 - Procedural textures
 - Light attenuation
+- Spheres, Triangles, Planes, and Meshes
+- Acceleration using a Bounding Volume Heirarchy
+- Error checking
+- Verbose timestampped logging
 
 ## Table of Contents
 [Build](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#Build)\
@@ -52,9 +56,14 @@ Permission is granted to use, copy, modify, and redistribute the work.
 Full license information available in the project LICENSE file.
 ```
 
-Portions of this software are copyright of their respective authors and released under the MIT license:
+Portions of this software are copyright of their respective authors and released under the [MIT license](https://opensource.org/licenses/MIT):
 - [DaveGamble/cJSON](https://github.com/DaveGamble/cJSON), Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
 - [SRombauts/SimplexNoise](https://github.com/SRombauts/SimplexNoise), Copyright (c) 2012-2018 Sebastien Rombauts
+
+Certain 3D models of this software are copyright of their respective authors:
+- [Doric Greek Column](https://www.thingiverse.com/thing:2859447), Copyright (c) 2018 anismo, Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode)
+- [Stone Pillars for Gloomhaven](https://www.thingiverse.com/thing:2990524), Copyright (c) 2018 Robagon, Licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode)
+- [Stanford Dragon](https://www.thingiverse.com/thing:27666), Copyright (c) 2012 MyDogJustice, Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode)
 
 ## History
 ###### 2020-12-26 \<6532a98e1e6bd11da1c537ae2454133ed9e06262>

@@ -13,6 +13,12 @@
 #define __TYPE_H__
 
 #include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+
+typedef float v2[2];
+typedef float v3[3];
+typedef float m3[3][3];
 
 #define UNREACHABLE  __builtin_unreachable()
 

@@ -13,13 +13,12 @@
 #define __RENDER_H__
 
 #include "type.h"
-#include "calc.h"
 
 void render_init(void);
 void create_image(void);
 
 void normalize_scene(void);
 
-extern Vec3 global_ambient_light_intensity;
+extern v3 global_ambient_light_intensity;
 
 #endif /* __RENDER_H__ */

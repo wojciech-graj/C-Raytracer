@@ -12,7 +12,6 @@
 #include "system.h"
 #include "argv.h"
 #include "error.h"
-#include "strhash.h"
 
 #include <stdlib.h>
 #include <time.h>
@@ -21,15 +20,15 @@
 #include <omp.h>
 #endif
 
-typedef enum _LogOption {
+enum LogOption {
 	LOG_REALTIME,
 	LOG_CPUTIME,
-} LogOption;
+};
 
 static struct timespec start_t;
 static clock_t start_clock;
 
-static LogOption log_option;
+static enum LogOption log_option;
 
 void system_init(void)
 {

@@ -19,10 +19,11 @@
 #include "render.h"
 #include "strhash.h"
 #include "error.h"
+#include "image.h"
 
 #include <stdio.h>
 
-#include "cJSON/cJSON.h"
+#include "cJSON.h"
 
 #define SCENE_ERROR_MSG(msg) msg " in scene [%s]."
 
@@ -42,13 +43,13 @@ void cJSON_parse_float_array(const cJSON *json, float *array);
 void camera_load(const cJSON *json);
 void materials_load(const cJSON *json);
 void material_load(const cJSON *json, size_t idx);
-Texture *texture_load(const cJSON *json);
+struct Texture *texture_load(const cJSON *json);
 void objects_load(const cJSON *json);
-void object_load(const cJSON *json, Object *object, ObjectType object_type);
-Object *sphere_load(const cJSON *json);
-Object *triangle_load(const cJSON *json);
+void object_load(const cJSON *json, struct Object *object, enum ObjectType object_type);
+struct Object *sphere_load(const cJSON *json);
+struct Object *triangle_load(const cJSON *json);
 #ifdef UNBOUND_OBJECTS
-Object *plane_load(const cJSON *json);
+struct Object *plane_load(const cJSON *json);
 #endif
 void mesh_load(const cJSON *json, size_t *i_object);
 
@@ -122,7 +123,7 @@ void camera_load(const cJSON *json)
 
 	float fov = json_fov->valuedouble,
 		focal_length = json_focal_length->valuedouble;
-	Vec3 position, vectors[2];
+	v3 position, vectors[2];
 
 	cJSON_parse_float_array(json_position, position);
 	cJSON_parse_float_array(json_vector_x, vectors[0]);
@@ -161,7 +162,7 @@ void material_load(const cJSON *json, const size_t idx)
 	GET_JSON_ARRAY(json_kt, json, "kt", 3);
 	GET_JSON_ARRAY(json_ke, json, "ke", 3);
 
-	Vec3 ks, ka, kr, kt, ke;
+	v3 ks, ka, kr, kt, ke;
 
 	cJSON_parse_float_array(json_ks, ks);
 	cJSON_parse_float_array(json_ka, ka);
@@ -172,23 +173,23 @@ void material_load(const cJSON *json, const size_t idx)
 	int32_t id = json_id->valueint;
 	float shininess = json_shininess->valuedouble;
 	float refractive_index = json_refractive_index->valuedouble;
-	Texture *texture = texture_load(json_texture);
+	struct Texture *texture = texture_load(json_texture);
 
 	material_init(&materials[idx], id, ks, ka, kr, kt, ke, shininess, refractive_index, texture);
 }
 
-Texture *texture_load(const cJSON *json)
+struct Texture *texture_load(const cJSON *json)
 {
 	cJSON *json_type;
 	GET_JSON_TYPECHECK(json_type, json, "type", String);
 
-	Texture *texture;
+	struct Texture *texture;
 	switch (hash_djb(json_type->valuestring)) {
 	case 3226203393: { //uniform
 		cJSON *json_color;
 		GET_JSON_ARRAY(json_color, json, "color", 3);
 
-		Vec3 color;
+		v3 color;
 		cJSON_parse_float_array(json_color, color);
 
 		texture = texture_uniform_new(color);
@@ -201,7 +202,7 @@ Texture *texture_load(const cJSON *json)
 
 		float scale = json_scale->valuedouble;
 
-		Vec3 colors[2];
+		v3 colors[2];
 		cJSON *json_iter;
 		size_t i = 0;
 		cJSON_ArrayForEach (json_iter, json_colors) {
@@ -223,7 +224,7 @@ Texture *texture_load(const cJSON *json)
 		float scale = json_scale->valuedouble;
 		float mortar_width = json_mortar_width->valuedouble;
 
-		Vec3 colors[2];
+		v3 colors[2];
 		cJSON *json_iter;
 		size_t i = 0;
 		cJSON_ArrayForEach (json_iter, json_colors) {
@@ -234,7 +235,7 @@ Texture *texture_load(const cJSON *json)
 		}
 
 		texture = texture_brick_new(colors, scale, mortar_width);
-		return (Texture*)texture;
+		return (struct Texture*)texture;
 		}
 	case 202158024: { //noisy periodic
 		cJSON *json_color, *json_color_gradient, *json_noise_feature_scale, *json_noise_scale, *json_frequency_scale, *json_function;
@@ -249,11 +250,11 @@ Texture *texture_load(const cJSON *json)
 		float noise_scale = json_noise_scale->valuedouble;
 		float frequency_scale = json_frequency_scale->valuedouble;
 
-		Vec3 color, color_gradient;
+		v3 color, color_gradient;
 		cJSON_parse_float_array(json_color, color);
 		cJSON_parse_float_array(json_color_gradient, color_gradient);
 
-		PeriodicFunction func;
+		enum PeriodicFunction func;
 		switch (hash_djb(json_function->valuestring)) {
 		case 193433777: //sin
 			func = PERIODIC_FUNC_SIN;
@@ -297,7 +298,7 @@ void objects_load(const cJSON *json)
 		GET_JSON_TYPECHECK(json_parameters, json_iter, "parameters", Object);
 		GET_JSON_TYPECHECK(json_material, json_parameters, "material", Number);
 
-		Material *material = get_material(json_material->valueint);
+		struct Material *material = get_material(json_material->valueint);
 		if (material->emittant)
 			num_emittant_objects++;
 #ifdef UNBOUND_OBJECTS
@@ -317,7 +318,7 @@ void objects_load(const cJSON *json)
 	cJSON_ArrayForEach (json_iter, json) {
 		cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json_iter, "type"),
 			*json_parameters = cJSON_GetObjectItemCaseSensitive(json_iter, "parameters");
-		Object *object;
+		struct Object *object;
 		switch (hash_djb(json_type->valuestring)) {
 		case 3324768284: /* Sphere */
 			object = sphere_load(json_parameters);
@@ -346,7 +347,7 @@ void objects_load(const cJSON *json)
 	}
 }
 
-void object_load(const cJSON *json, Object *object, const ObjectType object_type)
+void object_load(const cJSON *json, struct Object *object, const enum ObjectType object_type)
 {
 	cJSON *json_material,
 		*json_epsilon = cJSON_GetObjectItemCaseSensitive(json, "epsilon"),
@@ -355,13 +356,13 @@ void object_load(const cJSON *json, Object *object, const ObjectType object_type
 	GET_JSON_TYPECHECK(json_material, json, "material", Number);
 
 	float epsilon = cJSON_IsNumber(json_epsilon) ? (float)json_epsilon->valuedouble : -1.f;
-	Material *material = get_material(json_material->valueint);
+	struct Material *material = get_material(json_material->valueint);
 	uint32_t num_lights = cJSON_IsNumber(json_num_lights) ? json_num_lights->valueint : 0;
 
 	object_init(object, material, epsilon, num_lights, object_type);
 }
 
-Object *sphere_load(const cJSON *json)
+struct Object *sphere_load(const cJSON *json)
 {
 	cJSON *json_position, *json_radius;
 
@@ -370,17 +371,17 @@ Object *sphere_load(const cJSON *json)
 
 	float radius = json_radius->valuedouble;
 
-	Vec3 position;
+	v3 position;
 	cJSON_parse_float_array(json_position, position);
 
-	Object *sphere = sphere_new(position, radius);
+	struct Object *sphere = sphere_new(position, radius);
 	object_load(json, sphere, OBJECT_SPHERE);
 	sphere->object_data->postinit(sphere);
 
 	return sphere;
 }
 
-Object *triangle_load(const cJSON *json)
+struct Object *triangle_load(const cJSON *json)
 {
 	cJSON *json_vertex_1, *json_vertex_2, *json_vertex_3;
 
@@ -388,12 +389,12 @@ Object *triangle_load(const cJSON *json)
 	GET_JSON_ARRAY(json_vertex_2, json, "vertex_2", 3);
 	GET_JSON_ARRAY(json_vertex_3, json, "vertex_3", 3);
 
-	Vec3 vertices[3];
+	v3 vertices[3];
 	cJSON_parse_float_array(json_vertex_1, vertices[0]);
 	cJSON_parse_float_array(json_vertex_2, vertices[1]);
 	cJSON_parse_float_array(json_vertex_3, vertices[2]);
 
-	Object *triangle = triangle_new(vertices);
+	struct Object *triangle = triangle_new(vertices);
 	object_load(json, triangle, OBJECT_TRIANGLE);
 	triangle->object_data->postinit(triangle);
 
@@ -401,18 +402,18 @@ Object *triangle_load(const cJSON *json)
 }
 
 #ifdef UNBOUND_OBJECTS
-Object *plane_load(const cJSON *json)
+struct Object *plane_load(const cJSON *json)
 {
 	cJSON *json_position, *json_normal;
 
 	GET_JSON_ARRAY(json_position, json, "position", 3);
 	GET_JSON_ARRAY(json_normal, json, "normal", 3);
 
-	Vec3 position, normal;
+	v3 position, normal;
 	cJSON_parse_float_array(json_normal, normal);
 	cJSON_parse_float_array(json_position, position);
 
-	Object *plane = plane_new(position, normal);
+	struct Object *plane = plane_new(position, normal);
 	object_load(json, plane, OBJECT_PLANE);
 	plane->object_data->postinit(plane);
 
@@ -431,13 +432,27 @@ void mesh_load(const cJSON *json, size_t *i_object)
 
 	char *filename = json_filename->valuestring;
 	float scale = json_scale->valuedouble;
-	Vec3 position, rotation;
+	v3 position, rotation;
 
 	cJSON_parse_float_array(json_position, position);
 	cJSON_parse_float_array(json_rotation, rotation);
 
-	Object object;
+	struct Object object;
 	object_load(json, &object, OBJECT_TRIANGLE);
 
 	mesh_to_objects(filename, &object, position, rotation, scale, i_object);
+}
+
+void scene_scale(const float scale_factor)
+{
+	printf_log("Scaling scene by %f.", (double)scale_factor);
+
+	const v3 zero = {0};
+
+	size_t i;
+	for (i = 0; i < num_objects; i++)
+		objects[i]->object_data->scale(objects[i], zero, scale_factor);
+
+	camera_scale(zero, scale_factor);
+	image_scale(zero, scale_factor);
 }

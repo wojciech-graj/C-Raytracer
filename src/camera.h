@@ -12,18 +12,18 @@
 #ifndef __CAMERA_H__
 #define __CAMERA_H__
 
-#include "calc.h"
+#include "type.h"
 
-typedef struct _Camera {
-	Vec3 position;
-	Vec3 vectors[3]; //vectors are perpendicular to eachother and normalized. vectors[3] is normal to projection_plane.
+struct Camera {
+	v3 position;
+	v3 vectors[3]; //vectors are perpendicular to eachother and normalized. vectors[3] is normal to projection_plane.
 	float fov;
 	float focal_length;
-} Camera;
+};
 
-void camera_init(const Vec3 position, Vec3 vectors[2], float fov, float focal_length);
-void camera_scale(const Vec3 neg_shift, float scale);
+void camera_init(const v3 position, v3 vectors[2], float fov, float focal_length);
+void camera_scale(const v3 neg_shift, float scale);
 
-extern Camera camera;
+extern struct Camera camera;
 
 #endif /* __CAMERA_H__ */

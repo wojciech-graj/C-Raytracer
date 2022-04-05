@@ -12,7 +12,7 @@
 #ifndef __STRHASH_H__
 #define __STRHASH_H__
 
-#include <stdint.h>
+#include "type.h"
 
 // D. J. Bernstein hash function
 uint32_t hash_djb(const char* cp);

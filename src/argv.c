@@ -14,7 +14,6 @@
 #include "mem.h"
 #include "system.h"
 
-#include <stdint.h>
 #include <stdlib.h>
 
 int myargc;

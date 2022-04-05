@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-Image image;
+struct Image image;
 
 void image_init(void)
 {
@@ -33,7 +33,7 @@ void image_init(void)
 	image.size[Y] = image.size[X] * image.resolution[Y] / image.resolution[X];
 	image.pixels = safe_malloc(image.resolution[X] * image.resolution[Y] * sizeof(Color));
 
-	Vec3 focal_vector, plane_center, corner_offset_vectors[2];
+	v3 focal_vector, plane_center, corner_offset_vectors[2];
 	mul3s(camera.vectors[2], camera.focal_length, focal_vector);
 	add3v(focal_vector, camera.position, plane_center);
 	mul3s(camera.vectors[0], image.size[X] / image.resolution[X], image.vectors[0]);
@@ -48,7 +48,7 @@ void image_deinit(void)
 	free(image.pixels);
 }
 
-void image_scale(const Vec3 neg_shift, const float scale)
+void image_scale(const v3 neg_shift, const float scale)
 {
 	mul2s(image.size, scale, image.size);
 	sub3v(image.corner, neg_shift, image.corner);

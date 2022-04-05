@@ -13,12 +13,13 @@ This is a program which can generate an image using a relatively realistic simul
 ## Table of Contents
 [Build](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#Build)\
 [Gallery](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#Gallery)\
+[License](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#License)\
 [History](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#History)
 
 ## Build
 To build the program on linux with gcc:
 ```
-make release
+make
 ```
 
 ## Gallery
@@ -41,6 +42,19 @@ Three colored reflective spheres on a reflective surface.
 
 ![SCENE3](/images/scene3_low.png)
 A reflective and transparent sphere with the refractive index of glass [1.48], next to a matte yellow sphere.
+
+## License
+
+```
+Copyright (c) 2021-2022 Wojciech Graj
+Licensed under the MIT license: https://opensource.org/licenses/MIT
+Permission is granted to use, copy, modify, and redistribute the work.
+Full license information available in the project LICENSE file.
+```
+
+Portions of this software are copyright of their respective authors and released under the MIT license:
+- [DaveGamble/cJSON](https://github.com/DaveGamble/cJSON), Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
+- [SRombauts/SimplexNoise](https://github.com/SRombauts/SimplexNoise), Copyright (c) 2012-2018 Sebastien Rombauts
 
 ## History
 ###### 2020-12-26 \<6532a98e1e6bd11da1c537ae2454133ed9e06262>

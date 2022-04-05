@@ -69,11 +69,11 @@ void materials_init(void)
 void material_init(struct Material *material, const int32_t id, const v3 ks, const v3 ka, const v3 kr, const v3 kt, const v3 ke, const float shininess, const float refractive_index, struct Texture * const texture)
 {
 	material->id = id;
-	memcpy(material->ks, ks, sizeof(v3));
-	memcpy(material->ka, ka, sizeof(v3));
-	memcpy(material->kr, kr, sizeof(v3));
-	memcpy(material->kt, kt, sizeof(v3));
-	memcpy(material->ke, ke, sizeof(v3));
+	assign3(material->ks, ks);
+	assign3(material->ka, ka);
+	assign3(material->kr, kr);
+	assign3(material->kt, kt);
+	assign3(material->ke, ke);
 	material->shininess = shininess;
 	material->refractive_index = refractive_index;
 	material->texture = texture;
@@ -105,7 +105,7 @@ struct Texture *texture_uniform_new(const v3 color)
 	struct TextureUniform *texture = safe_malloc(sizeof(struct TextureUniform));
 
 	texture->texture.get_color = &texture_get_color_uniform;
-	memcpy(texture->color, color, sizeof(v3));
+	assign3(texture->color, color);
 
 	return (struct Texture*)texture;
 }
@@ -142,8 +142,8 @@ struct Texture *texture_noisy_periodic_new(const v3 color, const v3 color_gradie
 	texture->noise_scale = noise_scale;
 	texture->frequency_scale = frequency_scale;
 	texture->func = func;
-	memcpy(texture->color, color, sizeof(v3));
-	memcpy(texture->color_gradient, color_gradient, sizeof(v3));
+	assign3(texture->color, color);
+	assign3(texture->color_gradient, color_gradient);
 
 	return (struct Texture*)texture;
 }
@@ -152,7 +152,7 @@ void texture_get_color_uniform(const struct Texture *tex, const v3 point, v3 col
 {
 	(void)point;
 	struct TextureUniform *texture = (struct TextureUniform*)tex;
-	memcpy(color, texture->color, sizeof(v3));
+	assign3(color, texture->color);
 }
 
 void texture_get_color_checkerboard(const struct Texture *tex, const v3 point, v3 color)
@@ -161,7 +161,7 @@ void texture_get_color_checkerboard(const struct Texture *tex, const v3 point, v
 	v3 scaled_point;
 	mul3s(point, texture->scale, scaled_point);
 	uint32_t parity = ((uint32_t)scaled_point[X] + (uint32_t)scaled_point[Y] + (uint32_t)scaled_point[Z]) % 2u;
-	memcpy(color, texture->colors[parity], sizeof(v3));
+	assign3(color, texture->colors[parity]);
 }
 
 void texture_get_color_brick(const struct Texture *tex, const v3 point, v3 color)
@@ -173,7 +173,7 @@ void texture_get_color_brick(const struct Texture *tex, const v3 point, v3 color
 	scaled_point[Y] -= parity * .5f;
 	uint32_t is_mortar = (scaled_point[X] - floorf(scaled_point[X]) < texture->mortar_width)
 	|| (scaled_point[Y] - floorf(scaled_point[Y]) < texture->mortar_width);
-	memcpy(color, texture->colors[is_mortar], sizeof(v3));
+	assign3(color, texture->colors[is_mortar]);
 }
 
 void texture_get_color_noisy_periodic(const struct Texture *tex, const v3 point, v3 color)

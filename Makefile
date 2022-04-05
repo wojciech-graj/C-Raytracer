@@ -2,7 +2,7 @@ TARGET := engine
 CC := gcc
 
 WARNINGS := -Wall -Wextra -Wpedantic -Wdouble-promotion -Wstrict-prototypes -Wshadow -Wduplicated-cond -Wduplicated-branches -Wjump-misses-init -Wnull-dereference -Wrestrict -Wlogical-op -Walloc-zero -Wformat-security -Wformat-signedness -Winit-self -Wlogical-op -Wmissing-declarations -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wswitch-enum -Wundef -Wwrite-strings -Wno-address-of-packed-member -Wno-discarded-qualifiers
-CFLAGS := -std=c11 -march=native -DUNBOUND_OBJECTS -flto $(WARNINGS)
+CFLAGS := -std=c11 -march=native -flto -DUNBOUND_OBJECTS $(WARNINGS)
 LDFLAGS := -lm -Ilib
 
 BUILD_DIR := ./obj

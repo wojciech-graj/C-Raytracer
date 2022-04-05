@@ -24,8 +24,8 @@ void camera_init(const v3 position, v3 vectors[2], const float fov, const float 
 	camera.fov = fov;
 	camera.focal_length = focal_length;
 
-	memcpy(camera.position, position, sizeof(v3));
-	memcpy(camera.vectors, vectors, sizeof(v3) * 2);
+	assign3(camera.position, position);
+	memcpy(camera.vectors, vectors, sizeof(v3[2]));
 	norm3(camera.vectors[0]);
 	norm3(camera.vectors[1]);
 	cross(camera.vectors[0], camera.vectors[1], camera.vectors[2]);

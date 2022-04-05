@@ -172,7 +172,7 @@ void unbound_objects_get_closest_intersection(const struct Ray *ray, struct Obje
 		if (object->object_data->get_intersection(object, ray, &distance, normal) && distance < *closest_distance) {
 			*closest_distance = distance;
 			*closest_object = object;
-			memcpy(closest_normal, normal, sizeof(v3));
+			assign3(closest_normal, normal);
 
 		}
 	}
@@ -237,7 +237,7 @@ struct Object *sphere_new(const v3 position, const float radius)
 	struct Sphere *sphere = safe_malloc(sizeof(struct Sphere));
 
 	sphere->radius = radius;
-	memcpy(sphere->position, position, sizeof(v3));
+	assign3(sphere->position, position);
 
 	return (struct Object*)sphere;
 }
@@ -354,7 +354,7 @@ bool triangle_get_intersection(const struct Object *object, const struct Ray *ra
 	struct Triangle *triangle = (struct Triangle*)object;
 	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->point, ray->direction, triangle->object.epsilon, distance);
 	if (intersects) {
-		memcpy(normal, triangle->normal, sizeof(v3));
+		assign3(normal, triangle->normal);
 		return true;
 	}
 	return false;
@@ -371,8 +371,8 @@ bool triangle_intersects_in_range(const struct Object *object, const struct Ray 
 void triangle_get_corners(const struct Object *object, v3 corners[2])
 {
 	struct Triangle *triangle = (struct Triangle*)object;
-	memcpy(corners[0], triangle->vertices[2], sizeof(v3));
-	memcpy(corners[1], triangle->vertices[2], sizeof(v3));
+	assign3(corners[0], triangle->vertices[2]);
+	assign3(corners[1], triangle->vertices[2]);
 	size_t i, j;
 	for (i = 0; i < 2; i++)
 		for (j = 0; j < 3; j++) {
@@ -454,7 +454,7 @@ struct Object *plane_new(v3 position, v3 normal)
 {
 	struct Plane *plane = safe_malloc(sizeof(struct Plane));
 
-	memcpy(plane->normal, normal, sizeof(v3));
+	assign3(plane->normal, normal);
 	norm3(plane->normal);
 	plane->d = dot3(plane->normal, position);
 
@@ -475,7 +475,7 @@ bool plane_get_intersection(const struct Object *object, const struct Ray *ray, 
 	*distance = (plane->d - dot3(plane->normal, ray->point)) / dot3(plane->normal, ray->direction);
 	if (*distance > plane->object.epsilon) {
 		if (signbit(a))
-			memcpy(normal, plane->normal, sizeof(v3));
+			assign3(normal, plane->normal);
 		else
 			mul3s(plane->normal, -1.f, normal);
 		return true;

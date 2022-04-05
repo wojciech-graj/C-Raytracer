@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
 	create_image();
 	save_image();
 
+	printf_log("Terminating.");
 	accel_deinit();
 	argv_deinit();
 	image_deinit();

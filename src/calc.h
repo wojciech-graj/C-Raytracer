@@ -47,5 +47,7 @@ void clamp3(const v3 vec, const v3 min, const v3 max, v3 result);
 float magsqr3(const v3 vec);
 void mulmv(m3 mat, const float *restrict vec, float *restrict result);
 void mulms(m3 mat, float mul, m3 result);
+void assign3(v3 dest, const v3 src);
+void assignm(m3 dest, m3 src);
 
 #endif /* __CALC_H__ */

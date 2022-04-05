@@ -144,20 +144,25 @@ bool is_light_blocked(const struct Ray *ray, const float distance, v3 light_inte
 
 void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remaining_bounces, struct Object *inside_object)
 {
-	struct Object *closest_object = NULL;
+	struct Object *object = NULL;
 	v3 normal;
 	float min_distance;
-	struct Object *obj = inside_object;
 
-	if (inside_object && inside_object->object_data->get_intersection(obj, ray, &min_distance, normal)) {
-		closest_object = inside_object;
+	/* get ray intersection */
+	if (inside_object && inside_object->object_data->get_intersection(inside_object, ray, &min_distance, normal)) {
+		object = inside_object;
 	} else {
 		min_distance = FLT_MAX;
-		get_closest_intersection(ray, &closest_object, normal, &min_distance);
+		get_closest_intersection(ray, &object, normal, &min_distance);
 	}
-	struct Object *object = closest_object;
+
 	if (! object)
 		return;
+
+	//Ray originating at point of intersection
+	struct Ray outgoing_ray;
+	mul3s(ray->direction, min_distance, outgoing_ray.point);
+	add3v(outgoing_ray.point, ray->point, outgoing_ray.point);
 
 	//LIGHTING MODEL
 	v3 obj_color;
@@ -165,12 +170,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 	struct Material *material = object->material;
 
 	//emittance
-	memcpy(obj_color, material->ke, sizeof(v3));
-
-	//Ray originating at point of intersection
-	struct Ray outgoing_ray;
-	mul3s(ray->direction, min_distance, outgoing_ray.point);
-	add3v(outgoing_ray.point, ray->point, outgoing_ray.point);
+	assign3(obj_color, material->ke);
 
 	float b = dot3(normal, ray->direction);
 	bool is_outside = signbit(b);
@@ -178,14 +178,14 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 	size_t i, j;
 	for (i = 0; i < num_emittant_objects; i++) {
 		struct Object *emittant_object = emittant_objects[i];
-		if (emittant_object == object)
+		if (unlikely(emittant_object == object))
 			continue;
 		v3 light_intensity;
 		mul3s(emittant_object->material->ke, 1.f / emittant_object->num_lights, light_intensity);
 		for (j = 0; j < emittant_object->num_lights; j++) {
 			v3 light_point, incoming_light_intensity;
 			emittant_object->object_data->get_light_point(emittant_object, outgoing_ray.point, light_point);
-			memcpy(incoming_light_intensity, light_intensity, sizeof(v3));
+			assign3(incoming_light_intensity, light_intensity);
 
 			sub3v(light_point, outgoing_ray.point, outgoing_ray.direction);
 			float light_distance = mag3(outgoing_ray.direction);
@@ -255,7 +255,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 					{0.f, -1.f, 0.f},
 					{0.f, 0.f, -1.f},
 				};
-				memcpy(rotation_matrix, vx, sizeof(m3));
+				assignm(rotation_matrix, vx);
 			} else {
 				float mul = 1.f / (1.f + dot3((v3){0.f, 1.f, 0.f}, normal));
 				m3 vx = {
@@ -275,7 +275,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 						1.f - sqr(normal[Z]) * mul,
 					},
 				};
-				memcpy(rotation_matrix, vx, sizeof(m3));
+				assignm(rotation_matrix, vx);
 			}
 
 			v3 delta = {1.f, 1.f, 1.f};
@@ -364,7 +364,7 @@ void create_image(void)
 		mul3s(image.vectors[Y], row, pixel_position);
 		add3v(pixel_position, image.corner, pixel_position);
 		struct Ray ray;
-		memcpy(ray.point, camera.position, sizeof(v3));
+		assign3(ray.point, camera.position);
 		uint32_t pixel_index = image.resolution[X] * row;
 		uint32_t col;
 		for (col = 0; col < image.resolution[X]; col++) {

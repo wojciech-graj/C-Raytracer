@@ -59,7 +59,7 @@ void image_scale(const v3 neg_shift, const float scale)
 
 void save_image(void)
 {
-	printf_log("Saving image");
+	printf_log("Saving image.");
 
 	const char *filename = myargv[ARG_OUTPUT_FILENAME];
 	if (!strstr(filename, ".ppm")) {

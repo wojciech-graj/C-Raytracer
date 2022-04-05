@@ -201,3 +201,17 @@ void mulms(m3 mat, const float mul, m3 result)
 	mul3s(mat[Y], mul, result[Y]);
 	mul3s(mat[Z], mul, result[Z]);
 }
+
+void assign3(v3 dest, const v3 src)
+{
+	dest[X] = src[X];
+	dest[Y] = src[Y];
+	dest[Z] = src[Z];
+}
+
+void assignm(m3 dest, m3 src)
+{
+	assign3(dest[X], src[X]);
+	assign3(dest[Y], src[Y]);
+	assign3(dest[Z], src[Z]);
+}

@@ -90,7 +90,7 @@ struct BoundingCuboid *bounding_cuboid_new(const float epsilon, v3 corners[2])
 {
 	struct BoundingCuboid *bounding_cuboid = safe_malloc(sizeof(struct BoundingCuboid));
 	bounding_cuboid->epsilon = epsilon;
-	memcpy(bounding_cuboid->corners, corners, sizeof(v3) * 2);
+	memcpy(bounding_cuboid->corners, corners, sizeof(v3[2]));
 	return bounding_cuboid;
 }
 
@@ -327,7 +327,7 @@ void bvh_get_closest_intersection(const struct BVH *bvh, const struct Ray *ray, 
 		if (object->object_data->get_intersection(object, ray, &distance, normal) && distance < *closest_distance) {
 			*closest_distance = distance;
 			*closest_object = object;
-			memcpy(closest_normal, normal, sizeof(v3));
+			assign3(closest_normal, normal);
 		}
 		return;
 	}

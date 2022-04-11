@@ -18,7 +18,7 @@
 #include "material.h"
 #include "object.h"
 
-#include <stdlib.h>
+#include <stdio.h>
 
 static const char *HELPTEXT = "\
 Render a scene using raytracing.\n\
@@ -45,7 +45,7 @@ OPTIONAL PARAMETERS:\n\
 [-s] (\"phong\" | \"blinn\")         : DEFAULT = phong   : reflection model\n\
 [-n] (integer)                   : DEFAULT = 1       : number of samples which are rendered per pixel\n\
 [-c]                             : DEFAULT = OFF     : normalize values of pixels so that entire color spectrum is utilized\n\
-[-r] (float)                     : DEFAULT = 1.0     : scene scaling factor\n\
+[-r] (\"norm\" | float)            : DEFAULT = 1.0     : scene scaling factor\n\
 [-l] (\"none\" | \"lin\" | \"sqr\")    : DEFAULT = sqr     : light attenuation\n\
 [-p] (\"real\" | \"cpu\")            : DEFAULT = real    : time to print with status messages\n\
 [-g] (string)                    : DEFAULT = ambient : global illumination model\n\
@@ -72,10 +72,6 @@ int main(int argc, char *argv[])
 
 	scene_load();
 	image_init();
-
-	int idx = argv_check_with_args("-r", 1);
-	if (idx)
-		scene_scale(atof(myargv[idx + 1]));
 
 	accel_init();
 	render_init();

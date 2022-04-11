@@ -19,7 +19,7 @@
 #include "render.h"
 #include "strhash.h"
 #include "error.h"
-#include "image.h"
+#include "calc.h"
 
 #include <stdio.h>
 
@@ -52,6 +52,7 @@ struct Object *triangle_load(const cJSON *json);
 struct Object *plane_load(const cJSON *json);
 #endif
 void mesh_load(const cJSON *json, size_t *i_object);
+void scene_scale(float scale_factor);
 
 static char *scene_filename;
 
@@ -105,6 +106,21 @@ void scene_load(void)
 		cJSON_parse_float_array(json_ambient_light, global_ambient_light_intensity);
 
 	cJSON_Delete(json);
+
+	int idx = argv_check_with_args("-r", 1);
+	if (idx) {
+		if (hash_myargv[idx + 1] == 2087865883) { //norm
+			v3 min, max, range;
+			get_objects_extents(min, max);
+			sub3v(max, min, range);
+			float scale_factor = 1.f / max3(range);
+			scene_scale(scale_factor);
+
+		} else {
+			scene_scale(atof(myargv[idx + 1]));
+		}
+	}
+
 }
 
 void camera_load(const cJSON *json)
@@ -454,5 +470,4 @@ void scene_scale(const float scale_factor)
 		objects[i]->object_data->scale(objects[i], zero, scale_factor);
 
 	camera_scale(zero, scale_factor);
-	image_scale(zero, scale_factor);
 }

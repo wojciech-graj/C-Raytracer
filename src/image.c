@@ -48,15 +48,6 @@ void image_deinit(void)
 	free(image.pixels);
 }
 
-void image_scale(const v3 neg_shift, const float scale)
-{
-	mul2s(image.size, scale, image.size);
-	sub3v(image.corner, neg_shift, image.corner);
-	mul3s(image.corner, scale, image.corner);
-	mul3s(image.vectors[0], scale, image.vectors[0]);
-	mul3s(image.vectors[1], scale, image.vectors[1]);
-}
-
 void save_image(void)
 {
 	printf_log("Saving image.");

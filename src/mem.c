@@ -10,6 +10,7 @@
  **/
 
 #include "mem.h"
+
 #include "error.h"
 
 void *safe_malloc(const size_t size)

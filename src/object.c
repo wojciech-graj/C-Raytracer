@@ -10,15 +10,16 @@
  **/
 
 #include "object.h"
+
+#include <float.h>
+#include <math.h>
+#include <stdlib.h>
+
+#include "calc.h"
 #include "error.h"
+#include "material.h"
 #include "mem.h"
 #include "system.h"
-#include "calc.h"
-#include "material.h"
-
-#include <math.h>
-#include <float.h>
-#include <stdlib.h>
 
 struct Sphere {
 	struct Object object;
@@ -26,7 +27,7 @@ struct Sphere {
 	float radius;
 };
 
-struct Triangle {//triangle ABC
+struct Triangle { //triangle ABC
 	struct Object object;
 	v3 vertices[3];
 	v3 edges[2]; //Vectors BA and CA
@@ -34,7 +35,7 @@ struct Triangle {//triangle ABC
 };
 
 #ifdef UNBOUND_OBJECTS
-struct Plane {//normal = {a,b,c}, ax + by + cz = d
+struct Plane { //normal = {a,b,c}, ax + by + cz = d
 	struct Object object;
 	v3 normal;
 	float d;
@@ -45,7 +46,7 @@ struct STLTriangle {
 	float normal[3]; //normal is unreliable so it is not used.
 	float vertices[3][3];
 	uint16_t attribute_bytes; //attribute bytes is unreliable so it is not used.
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 /* Sphere */
 void sphere_postinit(struct Object *object);
@@ -93,7 +94,7 @@ static const struct ObjectVTable OBJECT_DATA[] = {
 	},
 #endif
 	[OBJECT_SPHERE] = {
-		.type = OBJECT_PLANE,
+		.type = OBJECT_SPHERE,
 #ifdef UNBOUND_OBJECTS
 		.is_bounded = true,
 #endif
@@ -133,11 +134,11 @@ void objects_init(void)
 {
 	printf_log("Initializing objects.");
 
-	objects = safe_malloc(sizeof(struct Object*) * num_objects);
-	emittant_objects = safe_malloc(sizeof(struct Object*) * num_emittant_objects);
+	objects = safe_malloc(sizeof(struct Object *) * num_objects);
+	emittant_objects = safe_malloc(sizeof(struct Object *) * num_emittant_objects);
 #ifdef UNBOUND_OBJECTS
 	if (num_unbound_objects)
-		unbound_objects = safe_malloc(sizeof(struct Object*) * num_unbound_objects);
+		unbound_objects = safe_malloc(sizeof(struct Object *) * num_unbound_objects);
 #endif
 }
 
@@ -145,7 +146,9 @@ void objects_deinit(void)
 {
 	size_t i;
 	for (i = 0; i < num_objects; i++)
+		// clang-format off
 		objects[i]->object_data->delete(objects[i]);
+	// clang-format on
 	free(objects);
 #ifdef UNBOUND_OBJECTS
 	free(unbound_objects);
@@ -173,7 +176,6 @@ void unbound_objects_get_closest_intersection(const struct Ray *ray, struct Obje
 			*closest_distance = distance;
 			*closest_object = object;
 			assign3(closest_normal, normal);
-
 		}
 	}
 }
@@ -189,7 +191,7 @@ bool unbound_objects_is_light_blocked(const struct Ray *ray, const float distanc
 				mul3v(light_intensity, object->material->kt, light_intensity);
 			else
 				return true;
-			}
+		}
 	}
 	return false;
 }
@@ -197,8 +199,10 @@ bool unbound_objects_is_light_blocked(const struct Ray *ray, const float distanc
 
 void get_objects_extents(v3 min, v3 max)
 {
+	// clang-format off
 	min[X] = FLT_MAX; min[Y] = FLT_MAX; min[Z] = FLT_MAX;
 	max[X] = FLT_MIN; max[Y] = FLT_MIN; max[Z] = FLT_MIN;
+	// clang-format on
 
 	size_t i, j;
 	for (i = 0; i < num_objects; i++) {
@@ -226,7 +230,7 @@ void get_objects_extents(v3 min, v3 max)
 
 void sphere_postinit(struct Object *object)
 {
-	struct Sphere *sphere = (struct Sphere*)object;
+	struct Sphere *sphere = (struct Sphere *)object;
 
 	if (sphere->object.epsilon == -1.f)
 		sphere->object.epsilon = sphere->radius * 0.0003f;
@@ -239,7 +243,7 @@ struct Object *sphere_new(const v3 position, const float radius)
 	sphere->radius = radius;
 	assign3(sphere->position, position);
 
-	return (struct Object*)sphere;
+	return (struct Object *)sphere;
 }
 
 void sphere_delete(struct Object *object)
@@ -249,20 +253,20 @@ void sphere_delete(struct Object *object)
 
 bool sphere_get_intersection(const struct Object *object, const struct Ray *ray, float *distance, v3 normal)
 {
-	struct Sphere *sphere = (struct Sphere*)object;
+	struct Sphere *sphere = (struct Sphere *)object;
 	if (line_intersects_sphere(sphere->position, sphere->radius, ray->point, ray->direction, sphere->object.epsilon, distance)) {
-			mul3s(ray->direction, *distance, normal);
-			add3v(normal, ray->point, normal);
-			sub3v(normal, sphere->position, normal);
-			mul3s(normal, 1.f / sphere->radius, normal);
-			return true;
-		}
+		mul3s(ray->direction, *distance, normal);
+		add3v(normal, ray->point, normal);
+		sub3v(normal, sphere->position, normal);
+		mul3s(normal, 1.f / sphere->radius, normal);
+		return true;
+	}
 	return false;
 }
 
 bool sphere_intersects_in_range(const struct Object *object, const struct Ray *ray, const float min_distance)
 {
-	struct Sphere *sphere = (struct Sphere*)object;
+	struct Sphere *sphere = (struct Sphere *)object;
 	float distance;
 	bool intersects = line_intersects_sphere(sphere->position, sphere->radius, ray->point, ray->direction, sphere->object.epsilon, &distance);
 	if (intersects && distance < min_distance)
@@ -272,14 +276,14 @@ bool sphere_intersects_in_range(const struct Object *object, const struct Ray *r
 
 void sphere_get_corners(const struct Object *object, v3 corners[2])
 {
-	struct Sphere *sphere = (struct Sphere*)object;
+	struct Sphere *sphere = (struct Sphere *)object;
 	sub3s(sphere->position, sphere->radius, corners[0]);
 	add3s(sphere->position, sphere->radius, corners[1]);
 }
 
 void sphere_scale(const struct Object *object, const v3 neg_shift, const float scale)
 {
-	struct Sphere *sphere = (struct Sphere*)object;
+	struct Sphere *sphere = (struct Sphere *)object;
 	sphere->object.epsilon *= scale;
 	sphere->radius *= scale;
 	sub3v(sphere->position, neg_shift, sphere->position);
@@ -288,7 +292,7 @@ void sphere_scale(const struct Object *object, const v3 neg_shift, const float s
 
 void sphere_get_light_point(const struct Object *object, const v3 point, v3 light_point)
 {
-	struct Sphere *sphere = (struct Sphere*)object;
+	struct Sphere *sphere = (struct Sphere *)object;
 	v3 normal;
 	sub3v(sphere->position, point, normal);
 	float inclination = rand_flt() * 2.f * PI;
@@ -310,7 +314,7 @@ bool line_intersects_sphere(const v3 sphere_position, const float sphere_radius,
 		return false;
 	float sqrt_det = sqrtf(det);
 	*distance = b - sqrt_det;
-	if (*distance > epsilon)//if in front of origin of ray
+	if (*distance > epsilon) //if in front of origin of ray
 		return true;
 	*distance = b + sqrt_det;
 	return *distance > epsilon; //check if the further distance is positive
@@ -322,7 +326,7 @@ bool line_intersects_sphere(const v3 sphere_position, const float sphere_radius,
 
 void triangle_postinit(struct Object *object)
 {
-	struct Triangle *triangle = (struct Triangle*)object;
+	struct Triangle *triangle = (struct Triangle *)object;
 
 	sub3v(triangle->vertices[1], triangle->vertices[0], triangle->edges[0]);
 	sub3v(triangle->vertices[2], triangle->vertices[0], triangle->edges[1]);
@@ -341,7 +345,7 @@ struct Object *triangle_new(v3 vertices[3])
 
 	memcpy(triangle->vertices, vertices, sizeof(v3[3]));
 
-	return (struct Object*)triangle;
+	return (struct Object *)triangle;
 }
 
 void triangle_delete(struct Object *object)
@@ -351,7 +355,7 @@ void triangle_delete(struct Object *object)
 
 bool triangle_get_intersection(const struct Object *object, const struct Ray *ray, float *distance, v3 normal)
 {
-	struct Triangle *triangle = (struct Triangle*)object;
+	struct Triangle *triangle = (struct Triangle *)object;
 	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->point, ray->direction, triangle->object.epsilon, distance);
 	if (intersects) {
 		assign3(normal, triangle->normal);
@@ -362,7 +366,7 @@ bool triangle_get_intersection(const struct Object *object, const struct Ray *ra
 
 bool triangle_intersects_in_range(const struct Object *object, const struct Ray *ray, float min_distance)
 {
-	struct Triangle *triangle = (struct Triangle*)object;
+	struct Triangle *triangle = (struct Triangle *)object;
 	float distance;
 	bool intersects = moller_trumbore(triangle->vertices[0], triangle->edges, ray->point, ray->direction, triangle->object.epsilon, &distance);
 	return intersects && distance < min_distance;
@@ -370,7 +374,7 @@ bool triangle_intersects_in_range(const struct Object *object, const struct Ray 
 
 void triangle_get_corners(const struct Object *object, v3 corners[2])
 {
-	struct Triangle *triangle = (struct Triangle*)object;
+	struct Triangle *triangle = (struct Triangle *)object;
 	assign3(corners[0], triangle->vertices[2]);
 	assign3(corners[1], triangle->vertices[2]);
 	size_t i, j;
@@ -385,7 +389,7 @@ void triangle_get_corners(const struct Object *object, v3 corners[2])
 
 void triangle_scale(const struct Object *object, const v3 neg_shift, const float scale)
 {
-	struct Triangle *triangle = (struct Triangle*)object;
+	struct Triangle *triangle = (struct Triangle *)object;
 	triangle->object.epsilon *= scale;
 	size_t i;
 	for (i = 0; i < 3; i++) {
@@ -400,7 +404,7 @@ void triangle_get_light_point(const struct Object *object, const v3 point, v3 li
 {
 	//NOTE: this method may be inefficient due to the 3 square root operations, but it is unlikely to be used often
 	(void)point;
-	struct Triangle *triangle = (struct Triangle*)object;
+	struct Triangle *triangle = (struct Triangle *)object;
 	float p = rand_flt(), q = rand_flt();
 
 	if (p + q > 1.f) {
@@ -443,7 +447,7 @@ bool moller_trumbore(const v3 vertex, v3 edges[2], const v3 line_position, const
 #ifdef UNBOUND_OBJECTS
 void plane_postinit(struct Object *object)
 {
-	struct Plane *plane = (struct Plane*)object;
+	struct Plane *plane = (struct Plane *)object;
 
 	error_check(!plane->object.material->emittant, "Plane cannot be emittant");
 	if (plane->object.epsilon == -1.f)
@@ -458,7 +462,7 @@ struct Object *plane_new(v3 position, v3 normal)
 	norm3(plane->normal);
 	plane->d = dot3(plane->normal, position);
 
-	return (struct Object*)plane;
+	return (struct Object *)plane;
 }
 
 void plane_delete(struct Object *object)
@@ -468,7 +472,7 @@ void plane_delete(struct Object *object)
 
 bool plane_get_intersection(const struct Object *object, const struct Ray *ray, float *distance, v3 normal)
 {
-	struct Plane *plane = (struct Plane*)object;
+	struct Plane *plane = (struct Plane *)object;
 	float a = dot3(plane->normal, ray->direction);
 	if (fabsf(a) < plane->object.epsilon) //ray is parallel to line
 		return false;
@@ -485,7 +489,7 @@ bool plane_get_intersection(const struct Object *object, const struct Ray *ray, 
 
 bool plane_intersects_in_range(const struct Object *object, const struct Ray *ray, float min_distance)
 {
-	struct Plane *plane = (struct Plane*)object;
+	struct Plane *plane = (struct Plane *)object;
 	float a = dot3(plane->normal, ray->direction);
 	if (fabsf(a) < plane->object.epsilon) //ray is parallel to line
 		return false;
@@ -495,8 +499,8 @@ bool plane_intersects_in_range(const struct Object *object, const struct Ray *ra
 
 void plane_scale(const struct Object *object, const v3 neg_shift, const float scale)
 {
-	struct Plane *plane = (struct Plane*)object;
-	v3 point = {1.f, 1.f, 1.f};
+	struct Plane *plane = (struct Plane *)object;
+	v3 point = { 1.f, 1.f, 1.f };
 	size_t i;
 	for (i = 0; i < 3; i++)
 		if (fabsf(plane->normal[i]) > plane->object.epsilon)
@@ -527,7 +531,7 @@ void mesh_to_objects(const char *filename, struct Object *object, const v3 posit
 uint32_t stl_get_num_triangles(FILE *file)
 {
 	int fseek_ret = fseek(file, sizeof(uint8_t) * 80, SEEK_SET);
-	error_check(!fseek_ret, "Failed to read header of mesh file %s.");
+	error_check(!fseek_ret, "Failed to read header of mesh file.");
 	uint32_t num_triangles;
 	size_t nmemb_read = fread(&num_triangles, sizeof(uint32_t), 1, file);
 	error_check(nmemb_read == 1, "Failed to read triangle count in mesh file.");
@@ -546,19 +550,15 @@ void stl_load_objects(FILE *file, const char *filename, struct Object *object, c
 	float a = cosf(rot[Z]) * sinf(rot[Y]);
 	float b = sinf(rot[Z]) * sinf(rot[Y]);
 	m3 rotation_matrix = {
-		{
-			cosf(rot[Z]) * cosf(rot[Y]),
+		{ cosf(rot[Z]) * cosf(rot[Y]),
 			a * sinf(rot[X]) - sinf(rot[Z]) * cosf(rot[X]),
-			a * cosf(rot[X]) + sinf(rot[Z]) * sinf(rot[X])
-		}, {
-			sinf(rot[Z]) * cosf(rot[Y]),
+			a * cosf(rot[X]) + sinf(rot[Z]) * sinf(rot[X]) },
+		{ sinf(rot[Z]) * cosf(rot[Y]),
 			b * sinf(rot[X]) + cosf(rot[Z]) * cosf(rot[X]),
-			b * cosf(rot[X]) - cosf(rot[Z]) * sinf(rot[X])
-		}, {
-			-sinf(rot[Y]),
+			b * cosf(rot[X]) - cosf(rot[Z]) * sinf(rot[X]) },
+		{ -sinf(rot[Y]),
 			cosf(rot[Y]) * sinf(rot[X]),
-			cosf(rot[Y]) * cosf(rot[X])
-		}
+			cosf(rot[Y]) * cosf(rot[X]) }
 	};
 
 	uint32_t num_triangles = stl_get_num_triangles(file);

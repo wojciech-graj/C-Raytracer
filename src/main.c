@@ -10,47 +10,48 @@
  **/
 
 #include "argv.h"
-#include "system.h"
-#include "scene.h"
-#include "image.h"
-#include "render.h"
-#include "accel.h"
-#include "material.h"
-#include "object.h"
 
 #include <stdio.h>
 
-static const char *HELPTEXT = "\
-Render a scene using raytracing.\n\
-Copyright: (c) 2021-2022 Wojciech Graj\n\
-License: https://opensource.org/licenses/MIT\n\
-Features: "
+#include "accel.h"
+#include "image.h"
+#include "material.h"
+#include "object.h"
+#include "render.h"
+#include "scene.h"
+#include "system.h"
+
+static const char *HELPTEXT =
+	"Render a scene using raytracing.\n"
+	"Copyright: (c) 2021-2022 Wojciech Graj\n"
+	"License: https://opensource.org/licenses/MIT\n"
+	"Features: "
 #ifdef MULTITHREADING
-"Multithreading "
+	"Multithreading "
 #endif
 #ifdef UNBOUND_OBJECTS
-"Planes "
+	"Planes "
 #endif
-"\n\
-Usage: ./engine <input> <output> <resolution> [OPTIONAL_PARAMETERS]\n\
-\n\
-REQUIRED PARAMETERS:\n\
-<input>      (string)            : .json scene file which will be used to generate the image. Example files can be found in ./scenes.\n\
-<output>     (string)            : .ppm file to which the image will be saved.\n\
-<resolution> (integer) (integer) : resolution of the output image.\n\
-OPTIONAL PARAMETERS:\n\
-[-m] (integer | \"max\")           : DEFAULT = 1       : number of CPU cores\n\
-[-b] (integer)                   : DEFAULT = 10      : maximum number of times that a light ray can bounce.\n\
-[-a] (float)                     : DEFAULT = 0.01    : minimum light intensity for which a ray is cast\n\
-[-s] (\"phong\" | \"blinn\")         : DEFAULT = phong   : reflection model\n\
-[-n] (integer)                   : DEFAULT = 1       : number of samples which are rendered per pixel\n\
-[-c]                             : DEFAULT = OFF     : normalize values of pixels so that entire color spectrum is utilized\n\
-[-r] (\"norm\" | float)            : DEFAULT = 1.0     : scene scaling factor\n\
-[-l] (\"none\" | \"lin\" | \"sqr\")    : DEFAULT = sqr     : light attenuation\n\
-[-p] (\"real\" | \"cpu\")            : DEFAULT = real    : time to print with status messages\n\
-[-g] (string)                    : DEFAULT = ambient : global illumination model\n\
-    ambient    : ambient lighting\n\
-    path       : path-tracing\n";
+	"\n"
+	"Usage: ./engine <input> <output> <resolution> [OPTIONAL_PARAMETERS]\n"
+	"\n"
+	"REQUIRED PARAMETERS:\n"
+	"<input>      (string)            : .json scene file which will be used to generate the image. Example files can be found in ./scenes.\n"
+	"<output>     (string)            : .ppm file to which the image will be saved.\n"
+	"<resolution> (integer) (integer) : resolution of the output image.\n"
+	"OPTIONAL PARAMETERS:\n"
+	"[-m] (integer | \"max\")           : DEFAULT = 1       : number of CPU cores\n"
+	"[-b] (integer)                   : DEFAULT = 10      : maximum number of times that a light ray can bounce.\n"
+	"[-a] (float)                     : DEFAULT = 0.01    : minimum light intensity for which a ray is cast\n"
+	"[-s] (\"phong\" | \"blinn\")         : DEFAULT = phong   : reflection model\n"
+	"[-n] (integer)                   : DEFAULT = 1       : number of samples which are rendered per pixel\n"
+	"[-c]                             : DEFAULT = OFF     : normalize values of pixels so that entire color spectrum is utilized\n"
+	"[-r] (\"norm\" | float)            : DEFAULT = 1.0     : scene scaling factor\n"
+	"[-l] (\"none\" | \"lin\" | \"sqr\")    : DEFAULT = sqr     : light attenuation\n"
+	"[-p] (\"real\" | \"cpu\")            : DEFAULT = real    : time to print with status messages\n"
+	"[-g] (string)                    : DEFAULT = ambient : global illumination model\n"
+	"    ambient    : ambient lighting\n"
+	"    path       : path-tracing\n";
 
 int main(int argc, char *argv[]);
 

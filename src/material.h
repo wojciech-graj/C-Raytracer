@@ -25,7 +25,7 @@ enum PeriodicFunction {
 struct Texture;
 
 struct Texture {
-	void (*get_color)(const struct Texture*, const v3, v3);
+	void (*get_color)(const struct Texture *, const v3, v3);
 };
 
 struct Material {
@@ -47,7 +47,7 @@ struct Material {
 void materials_init(void);
 void materials_deinit(void);
 
-void material_init(struct Material *material, int32_t id, const v3 ks, const v3 ka, const v3 kr, const v3 kt, const v3 ke, float shininess, float refractive_index, struct Texture * const texture);
+void material_init(struct Material *material, int32_t id, const v3 ks, const v3 ka, const v3 kr, const v3 kt, const v3 ke, float shininess, float refractive_index, struct Texture *const texture);
 
 struct Texture *texture_uniform_new(const v3 color);
 struct Texture *texture_checkerboard_new(v3 colors[2], float scale);

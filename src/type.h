@@ -13,17 +13,17 @@
 #define __TYPE_H__
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef float v2[2];
 typedef float v3[3];
 typedef float m3[3][3];
 
-#define UNREACHABLE  __builtin_unreachable()
+#define UNREACHABLE __builtin_unreachable()
 
-#define likely(x)       __builtin_expect((x), true)
-#define unlikely(x)     __builtin_expect((x), false)
+#define likely(x) __builtin_expect((x), true)
+#define unlikely(x) __builtin_expect((x), false)
 
 #define clz __builtin_clz
 

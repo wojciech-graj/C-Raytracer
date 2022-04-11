@@ -10,16 +10,17 @@
  **/
 
 #include "accel.h"
-#include "mem.h"
-#include "calc.h"
-#include "system.h"
-#include "object.h"
-#include "material.h"
 
-#include <stdlib.h>
 #include <float.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "calc.h"
+#include "material.h"
+#include "mem.h"
+#include "object.h"
+#include "system.h"
 
 struct BoundingCuboid {
 	float epsilon;
@@ -49,7 +50,7 @@ uint32_t expand_bits(uint32_t num);
 uint32_t morton_code(const v3 vec);
 
 /* BoundingCuboid */
-struct BoundingCuboid *bounding_cuboid_new(const float epsilon, v3 corners[2]);
+struct BoundingCuboid *bounding_cuboid_new(float epsilon, v3 corners[2]);
 struct BoundingCuboid *bounding_cuboid_new_from_object(const struct Object *object);
 void bounding_cuboid_delete(struct BoundingCuboid *bounding_cuboid);
 bool bounding_cuboid_intersects(const struct BoundingCuboid *cuboid, const struct Ray *ray, float *tmax, float *tmin);
@@ -57,9 +58,9 @@ bool bounding_cuboid_intersects(const struct BoundingCuboid *cuboid, const struc
 /* BVH */
 struct BVH *bvh_new(bool is_leaf, const struct BoundingCuboid *bounding_cuboid);
 int bvh_morton_code_compare(const void *p1, const void *p2);
-struct BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const struct BVHWithMorton *leaf_array, const size_t first, const size_t last);
+struct BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const struct BVHWithMorton *leaf_array, size_t first, size_t last);
 struct BoundingCuboid *bvh_generate_bounding_cuboid_node(const struct BVH *bvh_left, const struct BVH *bvh_right);
-struct BVH *bvh_generate_node(const struct BVHWithMorton *leaf_array, const size_t first, const size_t last);
+struct BVH *bvh_generate_node(const struct BVHWithMorton *leaf_array, size_t first, size_t last);
 void bvh_delete(struct BVH *bvh);
 void bvh_get_closest_intersection(const struct BVH *bvh, const struct Ray *ray, struct Object **closest_object, v3 closest_normal, float *closest_distance);
 bool bvh_is_light_blocked(const struct BVH *bvh, const struct Ray *ray, float distance, v3 light_intensity, const struct Object *emittant_object);
@@ -181,12 +182,12 @@ void bvh_delete(struct BVH *bvh)
 
 int bvh_morton_code_compare(const void *p1, const void *p2)
 {
-	return (int)((struct BVHWithMorton*)p1)->morton_code - (int)((struct BVHWithMorton*)p2)->morton_code;
+	return (int)((struct BVHWithMorton *)p1)->morton_code - (int)((struct BVHWithMorton *)p2)->morton_code;
 }
 
 struct BoundingCuboid *bvh_generate_bounding_cuboid_leaf(const struct BVHWithMorton *leaf_array, const size_t first, const size_t last)
 {
-	v3 corners[2] = {{FLT_MAX}, {FLT_MIN}};
+	v3 corners[2] = { { FLT_MAX }, { FLT_MIN } };
 	float epsilon = 0.f;
 	size_t i, j;
 	for (i = first; i <= last; i++) {

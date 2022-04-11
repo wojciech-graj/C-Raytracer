@@ -13,32 +13,27 @@
 
 #include <math.h>
 
-__attribute__((const))
-float sqr(const float val)
+__attribute__((const)) float sqr(const float val)
 {
 	return val * val;
 }
 
-__attribute__((const))
-float mag2(const v2 vec)
+__attribute__((const)) float mag2(const v2 vec)
 {
 	return sqrtf(sqr(vec[X]) + sqr(vec[Y]));
 }
 
-__attribute__((const))
-float mag3(const v3 vec)
+__attribute__((const)) float mag3(const v3 vec)
 {
 	return sqrtf(magsqr3(vec));
 }
 
-__attribute__((const))
-float dot2(const v2 vec1, const v2 vec2)
+__attribute__((const)) float dot2(const v2 vec1, const v2 vec2)
 {
 	return vec1[X] * vec2[X] + vec1[Y] * vec2[Y];
 }
 
-__attribute__((const))
-float dot3(const v3 vec1, const v3 vec2)
+__attribute__((const)) float dot3(const v3 vec1, const v3 vec2)
 {
 	return vec1[X] * vec2[X] + vec1[Y] * vec2[Y] + vec1[Z] * vec2[Z];
 }
@@ -146,30 +141,27 @@ void norm3(v3 vec)
 	mul3s(vec, 1.f / mag3(vec), vec);
 }
 
-__attribute__((const))
-float min3(const v3 vec)
+__attribute__((const)) float min3(const v3 vec)
 {
-    float min = vec[0];
-    if (min > vec[1])
-	min = vec[1];
-    if (min > vec[2])
-	min = vec[2];
-    return min;
+	float min = vec[0];
+	if (min > vec[1])
+		min = vec[1];
+	if (min > vec[2])
+		min = vec[2];
+	return min;
 }
 
-__attribute__((const))
-float max3(const v3 vec)
+__attribute__((const)) float max3(const v3 vec)
 {
-    float max = vec[0];
-    if (max < vec[1])
-	max = vec[1];
-    if (max < vec[2])
-	max = vec[2];
-    return max;
+	float max = vec[0];
+	if (max < vec[1])
+		max = vec[1];
+	if (max < vec[2])
+		max = vec[2];
+	return max;
 }
 
-__attribute__((const))
-float clamp(const float num, const float min, const float max)
+__attribute__((const)) float clamp(const float num, const float min, const float max)
 {
 	const float result = num < min ? min : num;
 	return result > max ? max : result;
@@ -182,8 +174,7 @@ void clamp3(const v3 vec, const v3 min, const v3 max, v3 result)
 	result[Z] = clamp(vec[Z], min[Z], max[Z]);
 }
 
-__attribute__((const))
-float magsqr3(const v3 vec)
+__attribute__((const)) float magsqr3(const v3 vec)
 {
 	return sqr(vec[X]) + sqr(vec[Y]) + sqr(vec[Z]);
 }

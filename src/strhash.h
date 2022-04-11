@@ -15,6 +15,6 @@
 #include "type.h"
 
 // D. J. Bernstein hash function
-uint32_t hash_djb(const char* cp);
+uint32_t hash_djb(const char *cp);
 
 #endif /* __STRHASH_H__ */

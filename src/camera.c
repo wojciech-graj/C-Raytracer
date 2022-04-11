@@ -10,6 +10,7 @@
  **/
 
 #include "camera.h"
+
 #include "calc.h"
 #include "error.h"
 

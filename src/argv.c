@@ -10,11 +10,12 @@
  **/
 
 #include "argv.h"
-#include "strhash.h"
-#include "mem.h"
-#include "system.h"
 
 #include <stdlib.h>
+
+#include "mem.h"
+#include "strhash.h"
+#include "system.h"
 
 int myargc;
 char **myargv;

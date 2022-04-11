@@ -10,15 +10,16 @@
  **/
 
 #include "image.h"
-#include "argv.h"
-#include "calc.h"
-#include "mem.h"
-#include "camera.h"
-#include "error.h"
 
 #include <math.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#include "argv.h"
+#include "calc.h"
+#include "camera.h"
+#include "error.h"
+#include "mem.h"
 
 struct Image image;
 

@@ -27,7 +27,6 @@ struct Image {
 void image_init(void);
 void image_deinit(void);
 
-void image_scale(const v3 neg_shift, float scale);
 void save_image(void);
 
 extern struct Image image;

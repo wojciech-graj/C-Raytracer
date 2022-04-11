@@ -10,19 +10,20 @@
  **/
 
 #include "render.h"
-#include "argv.h"
-#include "object.h"
-#include "material.h"
-#include "accel.h"
-#include "calc.h"
-#include "image.h"
-#include "camera.h"
-#include "system.h"
-#include "mem.h"
 
-#include <stdlib.h>
-#include <math.h>
 #include <float.h>
+#include <math.h>
+#include <stdlib.h>
+
+#include "accel.h"
+#include "argv.h"
+#include "calc.h"
+#include "camera.h"
+#include "image.h"
+#include "material.h"
+#include "mem.h"
+#include "object.h"
+#include "system.h"
 
 #ifdef MULTITHREADING
 #include <omp.h>
@@ -50,7 +51,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, uint32_t bounce_coun
 
 static float light_attenuation_offset = 1.f;
 static float brightness = 1.f;
-v3 global_ambient_light_intensity = {0};
+v3 global_ambient_light_intensity = { 0 };
 static uint32_t max_bounces = 10;
 static float minimum_light_intensity_sqr = .01f * .01f;
 static enum ReflectionModel reflection_model = REFLECTION_PHONG;
@@ -74,10 +75,10 @@ void render_init(void)
 	idx = argv_check_with_args("-s", 1);
 	if (idx)
 		switch (hash_myargv[idx + 1]) {
-		case 187940251://phong
+		case 187940251: //phong
 			reflection_model = REFLECTION_PHONG;
 			break;
-		case 175795714://blinn
+		case 175795714: //blinn
 			reflection_model = REFLECTION_BLINN;
 			break;
 		}
@@ -85,10 +86,10 @@ void render_init(void)
 	idx = argv_check_with_args("-g", 1);
 	if (idx)
 		switch (hash_myargv[idx + 1]) {
-		case 354625309://ambient
+		case 354625309: //ambient
 			global_illumination_model = GLOBAL_ILLUMINATION_AMBIENT;
 			break;
-		case 2088095368://path
+		case 2088095368: //path
 			global_illumination_model = GLOBAL_ILLUMINATION_PATH_TRACING;
 			break;
 		}
@@ -104,13 +105,13 @@ void render_init(void)
 	idx = argv_check_with_args("-l", 1);
 	if (idx)
 		switch (hash_myargv[idx + 1]) {
-		case 2087865487://none
+		case 2087865487: //none
 			light_attenuation = LIGHT_ATTENUATION_NONE;
 			break;
-		case 193412846://lin
+		case 193412846: //lin
 			light_attenuation = LIGHT_ATTENUATION_LINEAR;
 			break;
-		case 193433013://sqr
+		case 193433013: //sqr
 			light_attenuation = LIGHT_ATTENUATION_SQUARE;
 			break;
 		}
@@ -156,7 +157,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 		get_closest_intersection(ray, &object, normal, &min_distance);
 	}
 
-	if (! object)
+	if (!object)
 		return;
 
 	//Ray originating at point of intersection
@@ -195,7 +196,6 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 
 			if (is_outside
 				&& !is_light_blocked(&outgoing_ray, light_distance, incoming_light_intensity, emittant_object)) {
-
 				v3 distance;
 				sub3v(light_point, outgoing_ray.point, distance);
 				switch (light_attenuation) {
@@ -220,13 +220,13 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 				case REFLECTION_PHONG:
 					mul3s(normal, 2 * a, reflected);
 					sub3v(reflected, outgoing_ray.direction, reflected);
-					specular_mul = - dot3(reflected, ray->direction);
+					specular_mul = -dot3(reflected, ray->direction);
 					break;
 				case REFLECTION_BLINN:
 					mul3s(outgoing_ray.direction, -1.f, reflected);
 					add3v(reflected, ray->direction, reflected);
 					norm3(reflected);
-					specular_mul = - dot3(normal, reflected);
+					specular_mul = -dot3(normal, reflected);
 					break;
 				}
 				v3 specular;
@@ -244,20 +244,19 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 		v3 ambient_light;
 		mul3v(material->ka, global_ambient_light_intensity, ambient_light);
 		add3v(obj_color, ambient_light, obj_color);
-		}
-		break;
+	} break;
 	case GLOBAL_ILLUMINATION_PATH_TRACING:
 		if (remaining_bounces && is_outside) {
 			m3 rotation_matrix;
 			if (normal[Y] - object->epsilon < -1.f) {
 				m3 vx = {
-					{1.f, 0.f, 0.f},
-					{0.f, -1.f, 0.f},
-					{0.f, 0.f, -1.f},
+					{ 1.f, 0.f, 0.f },
+					{ 0.f, -1.f, 0.f },
+					{ 0.f, 0.f, -1.f },
 				};
 				assignm(rotation_matrix, vx);
 			} else {
-				float mul = 1.f / (1.f + dot3((v3){0.f, 1.f, 0.f}, normal));
+				float mul = 1.f / (1.f + dot3((v3){ 0.f, 1.f, 0.f }, normal));
 				m3 vx = {
 					{
 						1.f - sqr(normal[X]) * mul,
@@ -278,7 +277,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 				assignm(rotation_matrix, vx);
 			}
 
-			v3 delta = {1.f, 1.f, 1.f};
+			v3 delta = { 1.f, 1.f, 1.f };
 			size_t num_samples;
 			if (remaining_bounces == max_bounces) {
 				num_samples = samples_per_pixel;
@@ -354,7 +353,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 void create_image(void)
 {
 	printf_log("Commencing raytracing.");
-	v3 kr = {1.f, 1.f, 1.f};
+	v3 kr = { 1.f, 1.f, 1.f };
 	v3 *raw_pixels = safe_calloc(image.resolution[X] * image.resolution[Y], sizeof(v3));
 #ifdef MULTITHREADING
 #pragma omp parallel for

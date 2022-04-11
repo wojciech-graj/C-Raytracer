@@ -11,10 +11,10 @@
 
 #include "strhash.h"
 
-uint32_t hash_djb(const char* cp)
+uint32_t hash_djb(const char *cp)
 {
 	uint32_t hash = 5381;
 	while (*cp)
-		hash = 33 * hash ^ (uint8_t) *cp++;
+		hash = 33 * hash ^ (uint8_t)*cp++;
 	return hash;
 }

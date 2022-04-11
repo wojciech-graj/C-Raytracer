@@ -10,33 +10,34 @@
  **/
 
 #include "scene.h"
-#include "type.h"
+
+#include <stdio.h>
+
 #include "argv.h"
-#include "mem.h"
+#include "calc.h"
 #include "camera.h"
+#include "error.h"
 #include "material.h"
+#include "mem.h"
 #include "object.h"
 #include "render.h"
 #include "strhash.h"
-#include "error.h"
-#include "calc.h"
-
-#include <stdio.h>
+#include "type.h"
 
 #include "cJSON.h"
 
 #define SCENE_ERROR_MSG(msg) msg " in scene [%s]."
 
-#define GET_JSON_TYPECHECK(var, parent, token, type)\
-	do {\
-		var = cJSON_GetObjectItemCaseSensitive(parent, token);\
-		error_check(cJSON_Is ## type (var), SCENE_ERROR_MSG("Expected token [" token "] of type [" #type "]"), scene_filename);\
+#define GET_JSON_TYPECHECK(var, parent, token, type)                                                                                 \
+	do {                                                                                                                         \
+		var = cJSON_GetObjectItemCaseSensitive(parent, token);                                                               \
+		error_check(cJSON_Is##type(var), SCENE_ERROR_MSG("Expected token [" token "] of type [" #type "]"), scene_filename); \
 	} while (0)
 
-#define GET_JSON_ARRAY(var, parent, token, len)\
-	do {\
-		GET_JSON_TYPECHECK(var, parent, token, Array);\
-		error_check(cJSON_GetArraySize(var) == len, SCENE_ERROR_MSG("Expected token [" token "] of length [%d]"), len, scene_filename);\
+#define GET_JSON_ARRAY(var, parent, token, len)                                                                                                 \
+	do {                                                                                                                                    \
+		GET_JSON_TYPECHECK(var, parent, token, Array);                                                                                  \
+		error_check(cJSON_GetArraySize(var) == len, SCENE_ERROR_MSG("Expected token [" token "] of length [%d]"), len, scene_filename); \
 	} while (0)
 
 void cJSON_parse_float_array(const cJSON *json, float *array);
@@ -89,10 +90,8 @@ void scene_load(void)
 	error_check(json, "Failed to parse scene [%s].", scene_filename);
 	error_check(cJSON_IsObject(json), "Expected parent token of type Object in scene [%s].", scene_filename);
 
-	cJSON *json_materials = cJSON_GetObjectItemCaseSensitive(json, "Materials"),
-		*json_objects = cJSON_GetObjectItemCaseSensitive(json, "Objects"),
-		*json_camera = cJSON_GetObjectItemCaseSensitive(json, "Camera"),
-		*json_ambient_light = cJSON_GetObjectItemCaseSensitive(json, "AmbientLight");
+	cJSON *json_materials, *json_objects, *json_camera;
+	cJSON *json_ambient_light = cJSON_GetObjectItemCaseSensitive(json, "AmbientLight");
 
 	GET_JSON_TYPECHECK(json_materials, json, "Materials", Array);
 	GET_JSON_TYPECHECK(json_objects, json, "Objects", Array);
@@ -120,7 +119,6 @@ void scene_load(void)
 			scene_scale(atof(myargv[idx + 1]));
 		}
 	}
-
 }
 
 void camera_load(const cJSON *json)
@@ -137,8 +135,8 @@ void camera_load(const cJSON *json)
 	GET_JSON_TYPECHECK(json_fov, json, "fov", Number);
 	GET_JSON_TYPECHECK(json_focal_length, json, "focal_length", Number);
 
-	float fov = json_fov->valuedouble,
-		focal_length = json_focal_length->valuedouble;
+	float fov = json_fov->valuedouble;
+	float focal_length = json_focal_length->valuedouble;
 	v3 position, vectors[2];
 
 	cJSON_parse_float_array(json_position, position);
@@ -152,7 +150,7 @@ void materials_load(const cJSON *json)
 {
 	num_materials = cJSON_GetArraySize(json);
 	error_check(num_materials, SCENE_ERROR_MSG("Expected token [Materials] to contain nonzero element count"), scene_filename);
-	printf_log("Loading %u materials.", num_materials);
+	printf_log("Loading %zu materials.", num_materials);
 	materials_init();
 
 	size_t i = 0;
@@ -166,7 +164,7 @@ void materials_load(const cJSON *json)
 
 void material_load(const cJSON *json, const size_t idx)
 {
-	cJSON  *json_id, *json_ks, *json_ka, *json_kr, *json_kt, *json_ke, *json_shininess, *json_refractive_index, *json_texture;
+	cJSON *json_id, *json_ks, *json_ka, *json_kr, *json_kt, *json_ke, *json_shininess, *json_refractive_index, *json_texture;
 
 	GET_JSON_TYPECHECK(json_id, json, "id", Number);
 	GET_JSON_TYPECHECK(json_shininess, json, "shininess", Number);
@@ -209,8 +207,7 @@ struct Texture *texture_load(const cJSON *json)
 		cJSON_parse_float_array(json_color, color);
 
 		texture = texture_uniform_new(color);
-		break;
-		}
+	} break;
 	case 2234799246: { //checkerboard
 		cJSON *json_colors, *json_scale;
 		GET_JSON_ARRAY(json_colors, json, "colors", 2);
@@ -229,8 +226,7 @@ struct Texture *texture_load(const cJSON *json)
 		}
 
 		texture = texture_checkerboard_new(colors, scale);
-		break;
-		}
+	} break;
 	case 176032948: { //brick
 		cJSON *json_colors, *json_scale, *json_mortar_width;
 		GET_JSON_ARRAY(json_colors, json, "colors", 2);
@@ -251,8 +247,7 @@ struct Texture *texture_load(const cJSON *json)
 		}
 
 		texture = texture_brick_new(colors, scale, mortar_width);
-		return (struct Texture*)texture;
-		}
+	} break;
 	case 202158024: { //noisy periodic
 		cJSON *json_color, *json_color_gradient, *json_noise_feature_scale, *json_noise_scale, *json_frequency_scale, *json_function;
 		GET_JSON_ARRAY(json_color, json, "color", 3);
@@ -289,8 +284,7 @@ struct Texture *texture_load(const cJSON *json)
 		}
 
 		texture = texture_noisy_periodic_new(color, color_gradient, noise_feature_scale, noise_scale, frequency_scale, func);
-		break;
-		}
+	} break;
 	default:
 		error(SCENE_ERROR_MSG("Unrecognized token [%s] in texture"), json_type->valuestring, scene_filename);
 	}
@@ -302,9 +296,12 @@ void objects_load(const cJSON *json)
 {
 	num_objects = cJSON_GetArraySize(json);
 	error_check(num_objects, SCENE_ERROR_MSG("Expected token [Objects] to contain nonzero element count"), scene_filename);
-	printf_log("Loading %u objects.", num_objects);
+	printf_log("Loading %zu objects.", num_objects);
 
-	num_emittant_objects = num_unbound_objects = 0;
+	num_emittant_objects = 0;
+#ifdef UNBOUND_OBJECTS
+	num_unbound_objects = 0;
+#endif
 	cJSON *json_iter;
 	cJSON_ArrayForEach (json_iter, json) {
 		error_check(cJSON_IsObject(json_iter), SCENE_ERROR_MSG("Expected token in [Objects] of type Object"), scene_filename);
@@ -332,8 +329,8 @@ void objects_load(const cJSON *json)
 	size_t i_unbound_object = 0;
 #endif
 	cJSON_ArrayForEach (json_iter, json) {
-		cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json_iter, "type"),
-			*json_parameters = cJSON_GetObjectItemCaseSensitive(json_iter, "parameters");
+		cJSON *json_type = cJSON_GetObjectItemCaseSensitive(json_iter, "type");
+		cJSON *json_parameters = cJSON_GetObjectItemCaseSensitive(json_iter, "parameters");
 		struct Object *object;
 		switch (hash_djb(json_type->valuestring)) {
 		case 3324768284: /* Sphere */
@@ -365,9 +362,9 @@ void objects_load(const cJSON *json)
 
 void object_load(const cJSON *json, struct Object *object, const enum ObjectType object_type)
 {
-	cJSON *json_material,
-		*json_epsilon = cJSON_GetObjectItemCaseSensitive(json, "epsilon"),
-		*json_num_lights = cJSON_GetObjectItemCaseSensitive(json, "lights");
+	cJSON *json_material;
+	cJSON *json_epsilon = cJSON_GetObjectItemCaseSensitive(json, "epsilon");
+	cJSON *json_num_lights = cJSON_GetObjectItemCaseSensitive(json, "lights");
 
 	GET_JSON_TYPECHECK(json_material, json, "material", Number);
 
@@ -463,7 +460,7 @@ void scene_scale(const float scale_factor)
 {
 	printf_log("Scaling scene by %f.", (double)scale_factor);
 
-	const v3 zero = {0};
+	const v3 zero = { 0 };
 
 	size_t i;
 	for (i = 0; i < num_objects; i++)

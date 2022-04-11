@@ -14,10 +14,12 @@
 
 #include "type.h"
 
-#define SPHERICAL_TO_CARTESIAN(radius, inclination, azimuth)\
-	{radius * cosf(azimuth) * sinf(inclination),\
-	radius * sinf(azimuth) * sinf(inclination),\
-	radius * cosf(inclination)}
+#define SPHERICAL_TO_CARTESIAN(radius, inclination, azimuth)       \
+	{                                                          \
+		radius *cosf(azimuth) * sinf(inclination),         \
+			radius *sinf(azimuth) * sinf(inclination), \
+			radius *cosf(inclination)                  \
+	}
 
 float sqr(float val);
 float mag2(const v2 vec);

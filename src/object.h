@@ -36,13 +36,13 @@ struct ObjectVTable {
 #ifdef UNBOUND_OBJECTS
 	bool is_bounded;
 #endif
-	void (*postinit)(struct Object*);
-	bool (*get_intersection)(const struct Object*, const struct Ray*, float*, v3);
-	bool (*intersects_in_range)(const struct Object*, const struct Ray*, float);
-	void (*delete)(struct Object*);
-	void (*get_corners)(const struct Object*, v3[2]);
-	void (*scale)(const struct Object*, const v3, const float);
-	void (*get_light_point)(const struct Object*, const v3, v3);
+	void (*postinit)(struct Object *);
+	bool (*get_intersection)(const struct Object *, const struct Ray *, float *, v3);
+	bool (*intersects_in_range)(const struct Object *, const struct Ray *, float);
+	void (*delete)(struct Object *);
+	void (*get_corners)(const struct Object *, v3[2]);
+	void (*scale)(const struct Object *, const v3, const float);
+	void (*get_light_point)(const struct Object *, const v3, v3);
 };
 
 struct Object {

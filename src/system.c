@@ -10,11 +10,12 @@
  **/
 
 #include "system.h"
-#include "argv.h"
-#include "error.h"
 
 #include <stdlib.h>
 #include <time.h>
+
+#include "argv.h"
+#include "error.h"
 
 #ifdef MULTITHREADING
 #include <omp.h>
@@ -35,16 +36,16 @@ void system_init(void)
 	timespec_get(&start_t, TIME_UTC);
 	start_clock = clock();
 
-	srand((unsigned) start_t.tv_sec);
+	srand((unsigned)start_t.tv_sec);
 
 	int idx;
 	idx = argv_check_with_args("-p", 1);
 	if (idx) {
 		switch (hash_myargv[idx + 1]) {
-		case 2088303039://real
+		case 2088303039: //real
 			log_option = LOG_REALTIME;
 			break;
-		case 193416643://cpu
+		case 193416643: //cpu
 			log_option = LOG_CPUTIME;
 			break;
 		}
@@ -57,11 +58,11 @@ void system_init(void)
 	if (idx) {
 #ifdef MULTITHREADING
 		unsigned max_threads = omp_get_max_threads();
-		if (hash_myargv[idx + 1] == 193414065u) {//max
+		if (hash_myargv[idx + 1] == 193414065u) { //max
 			num_threads = max_threads;
 		} else {
 			num_threads = abs(atoi(myargv[idx + 1]));
-			error_check(num_threads <= max_threads, "Requested thread count [%u] exceeds maximum [%u].");
+			error_check(num_threads <= max_threads, "Requested thread count [%u] exceeds maximum [%u].", num_threads, max_threads);
 		}
 #else
 		error("Multithreading is disabled.");
@@ -80,13 +81,11 @@ double system_time(void)
 		struct timespec cur_t;
 		timespec_get(&cur_t, TIME_UTC);
 		return (cur_t.tv_sec - start_t.tv_sec) + (cur_t.tv_nsec - start_t.tv_nsec) * 1e-9;
-		}
-		break;
+	} break;
 	case LOG_CPUTIME: {
 		clock_t cur_t = clock();
 		return (double)(cur_t - start_clock) / CLOCKS_PER_SEC;
-		}
-		break;
+	} break;
 	}
 	return 0;
 }

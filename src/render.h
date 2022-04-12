@@ -15,9 +15,7 @@
 #include "type.h"
 
 void render_init(void);
-void create_image(void);
-
-void normalize_scene(void);
+void render(void);
 
 extern v3 global_ambient_light_intensity;
 

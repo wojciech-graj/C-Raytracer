@@ -50,14 +50,12 @@ bool is_light_blocked(const struct Ray *ray, float distance, v3 light_intensity,
 void cast_ray(const struct Ray *ray, const v3 kr, v3 color, uint32_t bounce_count, struct Object *inside_object);
 
 static float light_attenuation_offset = 1.f;
-static float brightness = 1.f;
 v3 global_ambient_light_intensity = { 0 };
 static uint32_t max_bounces = 10;
 static float minimum_light_intensity_sqr = .01f * .01f;
 static enum ReflectionModel reflection_model = REFLECTION_PHONG;
 static enum GlobalIlluminationModel global_illumination_model = GLOBAL_ILLUMINATION_AMBIENT;
 static size_t samples_per_pixel = 1;
-static bool normalize_colors = false;
 static enum LightAttenuation light_attenuation = LIGHT_ATTENUATION_SQUARE;
 
 void render_init(void)
@@ -98,10 +96,6 @@ void render_init(void)
 	if (idx)
 		samples_per_pixel = abs(atoi(myargv[idx + 1]));
 
-	idx = argv_check("-c");
-	if (idx)
-		normalize_colors = true;
-
 	idx = argv_check_with_args("-l", 1);
 	if (idx)
 		switch (hash_myargv[idx + 1]) {
@@ -119,10 +113,6 @@ void render_init(void)
 	idx = argv_check_with_args("-o", 1);
 	if (idx)
 		light_attenuation_offset = atof(myargv[idx + 1]);
-
-	idx = argv_check_with_args("-i", 1);
-	if (idx)
-		brightness = atof(myargv[idx + 1]);
 }
 
 void get_closest_intersection(const struct Ray *ray, struct Object **closest_object, v3 closest_normal, float *closest_distance)
@@ -350,11 +340,10 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 	}
 }
 
-void create_image(void)
+void render(void)
 {
 	printf_log("Commencing raytracing.");
 	v3 kr = { 1.f, 1.f, 1.f };
-	v3 *raw_pixels = safe_calloc(image.resolution[X] * image.resolution[Y], sizeof(v3));
 #ifdef MULTITHREADING
 #pragma omp parallel for
 #endif
@@ -370,40 +359,8 @@ void create_image(void)
 			add3v(pixel_position, image.vectors[X], pixel_position);
 			sub3v(pixel_position, camera.position, ray.direction);
 			norm3(ray.direction);
-			cast_ray(&ray, kr, raw_pixels[pixel_index], max_bounces, NULL);
+			cast_ray(&ray, kr, image.raster[pixel_index], max_bounces, NULL);
 			pixel_index++;
 		}
 	}
-
-	printf_log("Postprocessing.");
-	size_t image_size = image.resolution[Y] * image.resolution[X];
-	size_t i;
-	float slope = brightness;
-	if (normalize_colors) {
-		float min = FLT_MAX, max = FLT_MIN;
-		for (i = 0; i < image_size; i++) {
-			float *raw_pixel = raw_pixels[i];
-			float pixel_min = min3(raw_pixel), pixel_max = max3(raw_pixel);
-			if (pixel_min < min)
-				min = pixel_min;
-			if (pixel_max > max)
-				max = pixel_max;
-		}
-
-		slope /= (max - min);
-
-		for (i = 0; i < image_size; i++) {
-			sub3s(raw_pixels[i], min, raw_pixels[i]);
-		}
-	}
-
-	for (i = 0; i < image_size; i++) {
-		mul3s(raw_pixels[i], slope, raw_pixels[i]);
-		uint8_t *pixel = image.pixels[i];
-		pixel[0] = (uint8_t)fmaxf(fminf(raw_pixels[i][0] * 255.f, 255.f), 0.f);
-		pixel[1] = (uint8_t)fmaxf(fminf(raw_pixels[i][1] * 255.f, 255.f), 0.f);
-		pixel[2] = (uint8_t)fmaxf(fminf(raw_pixels[i][2] * 255.f, 255.f), 0.f);
-	}
-
-	free(raw_pixels);
 }

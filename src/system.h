@@ -27,7 +27,7 @@ float rand_flt(void);
 #pragma GCC system_header /* Ignore -Wpedantic warning about ##__VA_ARGS__ trailing comma */
 #define printf_log(fmt, ...)                                               \
 	do {                                                               \
-		printf("[%08.3f] %10s:%16s:%3u: " fmt "\n", system_time(), \
+		printf("[%08.3f] %10s:%18s:%3u: " fmt "\n", system_time(), \
 			__FILENAME__, __func__, __LINE__, ##__VA_ARGS__);  \
 	} while (0)
 

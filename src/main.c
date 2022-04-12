@@ -77,7 +77,9 @@ int main(int argc, char *argv[])
 	accel_init();
 	render_init();
 
-	create_image();
+	render();
+
+	image_postprocess();
 	save_image();
 
 	printf_log("Terminating.");

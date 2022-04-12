@@ -1,19 +1,19 @@
-TARGET := engine
+TARGET := postprocess
 CC := gcc
 
 WARNINGS := -Wall -Wextra -Wpedantic -Wdouble-promotion -Wstrict-prototypes -Wshadow -Wduplicated-cond -Wduplicated-branches -Wjump-misses-init -Wnull-dereference -Wrestrict -Wlogical-op -Walloc-zero -Wformat-security -Wformat-signedness -Winit-self -Wlogical-op -Wmissing-declarations -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wswitch-enum -Wundef -Wwrite-strings -Wno-address-of-packed-member -Wno-discarded-qualifiers
-CFLAGS := -std=c11 -march=native -flto -DUNBOUND_OBJECTS $(WARNINGS) $(OPT)
+CFLAGS := -std=c11 -march=native -flto $(WARNINGS)
 LDFLAGS := -lm -ltiff
 
-BUILD_DIR := ./obj
-SRC_DIRS := ./src/core ./src/raytracer ./lib
+BUILD_DIR := ./obj/postprocess
+SRC_DIRS := ./src/core ./src/postprocess
 
 ifeq ($(MAKECMDGOALS),debug)
 CLFAGS += -g -Og -DDEBUG
 LDFLAGS += -fsanitize=address -fsanitize=undefined -Og -g
 else
-CFLAGS += -Ofast -fopenmp -DMULTITHREADING
-LDFLAGS += -fopenmp -Ofast
+CFLAGS += -O3
+LDFLAGS += -O3
 endif
 
 SRCS := $(shell find $(SRC_DIRS) -name '*.c')

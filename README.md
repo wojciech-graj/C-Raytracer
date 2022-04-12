@@ -21,10 +21,17 @@ A raytracer used to render images using a relatively realistic simulation of lig
 [History](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#History)
 
 ## Build
-[libtiff](http://www.simplesystems.org/libtiff/) is dynamically linked and must be present in the LD_LIBRARY_PATH.\
-To build the program on linux with gcc:
+[libtiff](http://www.simplesystems.org/libtiff/) is dynamically linked and must be present in the LD_LIBRARY_PATH.
+
+To build the raytracer:
 ```
-make
+make -f Makefile.rt
+```
+
+Raw output from raytracer (enabled by `-f`) can have post-processing effects applied.\
+To build the postprocessor:
+```
+make -f Makefile.pp
 ```
 
 ## Gallery

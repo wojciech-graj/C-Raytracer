@@ -6,7 +6,7 @@ CFLAGS := -std=c11 -march=native -flto -DUNBOUND_OBJECTS $(WARNINGS) $(OPT)
 LDFLAGS := -lm -ltiff
 
 BUILD_DIR := ./obj
-SRC_DIRS := ./src ./lib
+SRC_DIRS := ./src/core ./src/raytracer ./lib
 
 ifeq ($(MAKECMDGOALS),debug)
 CLFAGS += -g -Og -DDEBUG

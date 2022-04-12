@@ -116,7 +116,7 @@ void save_image(void)
 	printf_log("Saving image.");
 
 	TIFF *tif;
-	char *filename = myargv[ARG_OUTPUT_FILENAME];
+	const char *filename = myargv[ARG_OUTPUT_FILENAME];
 	if (unlikely(!strstr(filename, ".tif")))
 		printf_log("Expected output file [%s] with extension .tif.", filename);
 	tif = TIFFOpen(filename, "w");

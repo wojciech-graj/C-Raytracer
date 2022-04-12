@@ -25,6 +25,8 @@ typedef float m3[3][3];
 #define likely(x) __builtin_expect((x), true)
 #define unlikely(x) __builtin_expect((x), false)
 
+#define arrlen(a) (sizeof(a) / sizeof(a[0]))
+
 #define clz __builtin_clz
 
 #define PI 3.1415927f

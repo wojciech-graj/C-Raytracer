@@ -3,7 +3,7 @@ CC := gcc
 
 WARNINGS := -Wall -Wextra -Wpedantic -Wdouble-promotion -Wstrict-prototypes -Wshadow -Wduplicated-cond -Wduplicated-branches -Wjump-misses-init -Wnull-dereference -Wrestrict -Wlogical-op -Walloc-zero -Wformat-security -Wformat-signedness -Winit-self -Wlogical-op -Wmissing-declarations -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wswitch-enum -Wundef -Wwrite-strings -Wno-address-of-packed-member -Wno-discarded-qualifiers
 CFLAGS := -std=c11 -march=native -flto -DUNBOUND_OBJECTS $(WARNINGS) $(OPT)
-LDFLAGS := -lm -Ilib
+LDFLAGS := -lm -ltiff
 
 BUILD_DIR := ./obj
 SRC_DIRS := ./src ./lib

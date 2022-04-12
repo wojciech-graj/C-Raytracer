@@ -47,7 +47,7 @@ enum LightAttenuation {
 
 void get_closest_intersection(const struct Ray *ray, struct Object **closest_object, v3 closest_normal, float *closest_distance);
 bool is_light_blocked(const struct Ray *ray, float distance, v3 light_intensity, const struct Object *emittant_object);
-void cast_ray(const struct Ray *ray, const v3 kr, v3 color, uint32_t bounce_count, struct Object *inside_object);
+float cast_ray(const struct Ray *ray, const v3 kr, v3 color, uint32_t bounce_count, struct Object *inside_object);
 
 static float light_attenuation_offset = 1.f;
 v3 global_ambient_light_intensity = { 0 };
@@ -133,7 +133,7 @@ bool is_light_blocked(const struct Ray *ray, const float distance, v3 light_inte
 #endif
 }
 
-void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remaining_bounces, struct Object *inside_object)
+float cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remaining_bounces, struct Object *inside_object)
 {
 	struct Object *object = NULL;
 	v3 normal;
@@ -148,7 +148,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 	}
 
 	if (!object)
-		return;
+		return 0.f;
 
 	//Ray originating at point of intersection
 	struct Ray outgoing_ray;
@@ -302,7 +302,7 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 	add3v(color, obj_color, color);
 
 	if (!remaining_bounces)
-		return;
+		return 0.f;
 
 	//reflection
 	if (inside_object != object
@@ -338,6 +338,8 @@ void cast_ray(const struct Ray *ray, const v3 kr, v3 color, const uint32_t remai
 			cast_ray(&outgoing_ray, refracted_kt, color, remaining_bounces - 1, object);
 		}
 	}
+
+	return min_distance;
 }
 
 void render(void)
@@ -359,7 +361,7 @@ void render(void)
 			add3v(pixel_position, image.vectors[X], pixel_position);
 			sub3v(pixel_position, camera.position, ray.direction);
 			norm3(ray.direction);
-			cast_ray(&ray, kr, image.raster[pixel_index], max_bounces, NULL);
+			image.z_buffer[pixel_index] = cast_ray(&ray, kr, image.raster[pixel_index], max_bounces, NULL);
 			pixel_index++;
 		}
 	}

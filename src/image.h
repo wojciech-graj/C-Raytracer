@@ -14,8 +14,6 @@
 
 #include "type.h"
 
-typedef uint8_t Color[3];
-
 struct Image {
 	uint32_t resolution[2];
 	size_t pixels;
@@ -24,12 +22,12 @@ struct Image {
 	v3 vectors[2]; //Vectors for image plane traversal by 1 pixel in X and Y directions
 
 	v3 *raster;
+	float *z_buffer;
 };
 
 void image_init(void);
 void image_deinit(void);
 
-void image_postprocess(void);
 void save_image(void);
 
 extern struct Image image;

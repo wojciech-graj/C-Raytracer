@@ -22,10 +22,14 @@
 #include "error.h"
 #include "mem.h"
 
-struct Image image;
+#include <tiffio.h>
 
-static bool normalize_colors = false;
-static float brightness = 1.f;
+#define TIFFTAG_Z_BUFFER 65000
+
+void save_tiff_raw(TIFF *tif);
+void save_tiff(TIFF *tif);
+
+struct Image image;
 
 void image_init(void)
 {
@@ -37,7 +41,9 @@ void image_init(void)
 
 	image.size[X] = 2 * camera.focal_length * tanf(camera.fov * PI / 360.f);
 	image.size[Y] = image.size[X] * image.resolution[Y] / image.resolution[X];
+
 	image.raster = safe_malloc(image.pixels * sizeof(v3));
+	image.z_buffer = safe_malloc(image.pixels * sizeof(float));
 
 	v3 focal_vector, plane_center, corner_offset_vectors[2];
 	mul3s(camera.vectors[2], camera.focal_length, focal_vector);
@@ -47,62 +53,40 @@ void image_init(void)
 	mul3s(image.vectors[X], .5f - image.resolution[X] / 2.f, corner_offset_vectors[X]);
 	mul3s(image.vectors[Y], .5f - image.resolution[Y] / 2.f, corner_offset_vectors[Y]);
 	add3v3(plane_center, corner_offset_vectors[X], corner_offset_vectors[Y], image.corner);
-
-	int idx;
-	idx = argv_check("-c");
-	if (idx)
-		normalize_colors = true;
-
-	idx = argv_check_with_args("-i", 1);
-	if (idx)
-		brightness = atof(myargv[idx + 1]);
 }
 
 void image_deinit(void)
 {
 	free(image.raster);
+	free(image.z_buffer);
 }
 
-void image_postprocess(void)
+void save_tiff_raw(TIFF *tif)
 {
-	printf_log("Postprocessing.");
-	size_t i;
-	float slope = brightness;
-	if (normalize_colors) {
-		float min = FLT_MAX, max = FLT_MIN;
-		for (i = 0; i < image.pixels; i++) {
-			float *raw_pixel = image.raster[i];
-			float pixel_min = min3(raw_pixel), pixel_max = max3(raw_pixel);
-			if (pixel_min < min)
-				min = pixel_min;
-			if (pixel_max > max)
-				max = pixel_max;
-		}
+	TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 32);
 
-		slope /= (max - min);
+	static const TIFFFieldInfo xtiffFieldInfo[] = {
+		{ TIFFTAG_Z_BUFFER, TIFF_VARIABLE, TIFF_VARIABLE, TIFF_FLOAT, FIELD_CUSTOM, true, true, "ZBuffer" },
+	};
 
-		for (i = 0; i < image.pixels; i++) {
-			sub3s(image.raster[i], min, image.raster[i]);
-		}
+	TIFFMergeFieldInfo(tif, xtiffFieldInfo, arrlen(xtiffFieldInfo));
+	TIFFSetField(tif, TIFFTAG_Z_BUFFER, image.pixels, image.z_buffer);
+
+	tdata_t buf;
+	tstrip_t strip;
+
+	buf = _TIFFmalloc(TIFFStripSize(tif));
+	for (strip = 0; strip < TIFFNumberOfStrips(tif); strip++) {
+		memcpy(buf, image.raster[strip * image.resolution[X]], TIFFStripSize(tif));
+		TIFFWriteScanline(tif, buf, strip, 0);
 	}
 
-	if (slope != 1.f) {
-		for (i = 0; i < image.pixels; i++) {
-			mul3s(image.raster[i], slope, image.raster[i]);
-		}
-	}
+	_TIFFfree(buf);
 }
 
-void save_image(void)
+void save_tiff(TIFF *tif)
 {
-	printf_log("Saving image.");
-
-	const char *filename = myargv[ARG_OUTPUT_FILENAME];
-	if (!strstr(filename, ".ppm")) {
-		error("Expected output file [%s] with extension .ppm.", filename);
-	}
-	FILE *file = fopen(filename, "wb");
-	error_check(file, "Failed to open output file [%s].", filename);
+	TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
 
 	uint8_t(*pixels)[3] = safe_malloc(image.resolution[X] * image.resolution[Y] * sizeof(uint8_t[3]));
 
@@ -114,11 +98,42 @@ void save_image(void)
 		pixel[2] = (uint8_t)fmaxf(fminf(image.raster[i][2] * 255.f, 255.f), 0.f);
 	}
 
-	size_t nmemb_written = fprintf(file, "P6\n%u %u\n255\n", image.resolution[X], image.resolution[Y]);
-	error_check(nmemb_written > 0, "Failed to write header to output file [%s].", myargv[2]);
-	nmemb_written = fwrite(pixels, sizeof(Color), image.pixels, file);
-	error_check(nmemb_written == image.pixels, "Failed to write pixels to output file [%s].", myargv[2]);
+	tdata_t buf;
+	tstrip_t strip;
 
-	fclose(file);
+	buf = _TIFFmalloc(TIFFStripSize(tif));
+	for (strip = 0; strip < TIFFNumberOfStrips(tif); strip++) {
+		memcpy(buf, pixels[strip * image.resolution[X]], TIFFStripSize(tif));
+		TIFFWriteScanline(tif, buf, strip, 0);
+	}
+
+	_TIFFfree(buf);
 	free(pixels);
+}
+
+void save_image(void)
+{
+	printf_log("Saving image.");
+
+	TIFF *tif;
+	char *filename = myargv[ARG_OUTPUT_FILENAME];
+	if (unlikely(!strstr(filename, ".tif")))
+		printf_log("Expected output file [%s] with extension .tif.", filename);
+	tif = TIFFOpen(filename, "w");
+	error_check(tif, "Failed to open output file [%s].", filename);
+
+	TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, image.resolution[X]);
+	TIFFSetField(tif, TIFFTAG_IMAGELENGTH, image.resolution[Y]);
+	TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 3);
+	TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+	TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+	TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
+	TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, 1);
+
+	if (argv_check("-f"))
+		save_tiff_raw(tif);
+	else
+		save_tiff(tif);
+
+	TIFFClose(tif);
 }

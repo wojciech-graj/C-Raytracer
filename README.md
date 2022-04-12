@@ -21,6 +21,7 @@ A raytracer used to render images using a relatively realistic simulation of lig
 [History](https://github.com/wojciech-graj/raytracing-engine/blob/master/README.md#History)
 
 ## Build
+[libtiff](http://www.simplesystems.org/libtiff/) is dynamically linked and must be present in the LD_LIBRARY_PATH.\
 To build the program on linux with gcc:
 ```
 make
@@ -59,6 +60,8 @@ Full license information available in the project LICENSE file.
 Portions of this software are copyright of their respective authors and released under the [MIT license](https://opensource.org/licenses/MIT):
 - [DaveGamble/cJSON](https://github.com/DaveGamble/cJSON), Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
 - [SRombauts/SimplexNoise](https://github.com/SRombauts/SimplexNoise), Copyright (c) 2012-2018 Sebastien Rombauts
+- [libtiff/libtiff](https://gitlab.com/libtiff/libtiff), Copyright (c) 1988-1997 Sam Leffler
+Copyright (c) 1991-1997 Silicon Graphics, Inc.
 
 Certain 3D models of this software are copyright of their respective authors:
 - [Doric Greek Column](https://www.thingiverse.com/thing:2859447), Copyright (c) 2018 anismo, Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode)

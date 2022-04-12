@@ -9,11 +9,10 @@
  *   main
  **/
 
-#include "argv.h"
-
 #include <stdio.h>
 
 #include "accel.h"
+#include "argv.h"
 #include "image.h"
 #include "material.h"
 #include "object.h"
@@ -37,7 +36,7 @@ static const char *HELPTEXT =
 	"\n"
 	"REQUIRED PARAMETERS:\n"
 	"<input>      (string)            : .json scene file which will be used to generate the image. Example files can be found in ./scenes.\n"
-	"<output>     (string)            : .ppm file to which the image will be saved.\n"
+	"<output>     (string)            : .tif file to which the image will be saved.\n"
 	"<resolution> (integer) (integer) : resolution of the output image.\n"
 	"OPTIONAL PARAMETERS:\n"
 	"[-m] (integer | \"max\")           : DEFAULT = 1       : number of CPU cores\n"
@@ -45,13 +44,13 @@ static const char *HELPTEXT =
 	"[-a] (float)                     : DEFAULT = 0.01    : minimum light intensity for which a ray is cast\n"
 	"[-s] (\"phong\" | \"blinn\")         : DEFAULT = phong   : reflection model\n"
 	"[-n] (integer)                   : DEFAULT = 1       : number of samples which are rendered per pixel\n"
-	"[-c]                             : DEFAULT = OFF     : normalize values of pixels so that entire color spectrum is utilized\n"
 	"[-r] (\"norm\" | float)            : DEFAULT = 1.0     : scene scaling factor\n"
 	"[-l] (\"none\" | \"lin\" | \"sqr\")    : DEFAULT = sqr     : light attenuation\n"
 	"[-p] (\"real\" | \"cpu\")            : DEFAULT = real    : time to print with status messages\n"
 	"[-g] (string)                    : DEFAULT = ambient : global illumination model\n"
 	"    ambient    : ambient lighting\n"
-	"    path       : path-tracing\n";
+	"    path       : path-tracing\n"
+	"[-f]                             : DEFAULT = OFF     : save raw output for post-processing.\n";
 
 int main(int argc, char *argv[]);
 
@@ -79,7 +78,6 @@ int main(int argc, char *argv[])
 
 	render();
 
-	image_postprocess();
 	save_image();
 
 	printf_log("Terminating.");

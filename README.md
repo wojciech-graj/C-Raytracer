@@ -8,9 +8,10 @@ A raytracer used to render images using a relatively realistic simulation of lig
 - Refraction
 - Global illumination using Path Tracing
 - Procedural textures
-- Light attenuation
-- Spheres, Triangles, Planes, and Meshes
+- Depth of Field
 - Acceleration using a Bounding Volume Heirarchy
+- Spheres, Triangles, Planes, and Meshes
+- Light attenuation
 - Error checking
 - Verbose timestampped logging
 
@@ -47,7 +48,7 @@ Spheres with various procedural textures.
 A green glass Stanford dragon.
 
 ![SCENE6](/images/scene6_low.png)
-Two spheres in a Cornell box. The left one is reflective, and the right one is transparent with the refractive index of glass [1.48]
+A menger sponge with a procedural texture and depth of field.
 
 ![SCENE1](/images/scene1_low.png)
 Three colored reflective spheres on a reflective surface.
@@ -135,6 +136,10 @@ Light attenuates following the inverse square law, meaning that its intensity is
 ![HISTORY11](/images/history/history_11.png)
 
 ######  2021-06-09 \<b858c1211dd8e17f2b0b2340087e09750adbdcd1>
-Another feature which had to be added were textures. Mapping 2d textures onto various 3D objects can be a very complicated process, so I opted to use procedural textures. These are textures which are generated based on some function which takes 3D coordinates as parameters. Some interesting functions can be found [here](http://www.upvector.com/?section=Tutorials&subsection=Intro%20to%20Procedural%20Textures) and [here](https://graphics.cg.uni-saarland.de/courses/cg1-2017/slides/CG08-Texturing.pdf). The sphere in the bottom right has a checkerboard texture, which was achieved by rounding the coordinates to the nearest integer, then checking whether or not the sum of those integers was divisible by two. The sphere to its left has a brick texture, and the three behind them all use a combination of a periodic function and noise.\
-Generating noise can be achieved by simply assigning a random value to each pixel. However, in order to have noise which blends together by having neighboring values be similar, simplex noise can be used. By adding the noise function of a particular point to the point's X value, then putting this value into a periodic function, unique and natural-looking textures can be produced. The sphere on the right uses a sine function, the one on the left uses a sawtooth function, and the back one uses a square function.\
+Another feature which had to be added were textures. Mapping 2D textures onto various 3D objects can be a very complicated process, so I opted to use procedural textures. These are textures which are generated based on some function which takes 3D coordinates as parameters. Some interesting functions can be found [here](http://www.upvector.com/?section=Tutorials&subsection=Intro%20to%20Procedural%20Textures) and [here](https://graphics.cg.uni-saarland.de/courses/cg1-2017/slides/CG08-Texturing.pdf). The sphere in the bottom right has a checkerboard texture, which was achieved by rounding the coordinates to the nearest integer, then checking whether or not the sum of those integers was divisible by two. The sphere to its left has a brick texture, and the three behind them all use a combination of a periodic function and random noise.\
+Generating noise can be achieved by simply assigning a random value to each pixel, however, in order to have noise which blends together by having neighboring values be similar, simplex noise can be used. By adding the noise function of a particular point to the point's X value, then putting this value into a periodic function, unique and natural-looking textures can be produced. The sphere on the right uses a sine function, the one on the left uses a sawtooth function, and the back one uses a square function.\
 ![HISTORY12](/images/history/history_12.png)
+
+######  2022-04-24 \<...>
+The depth-of-field is an effect wherein objects become increasingly blurred as their distance to the plane in focus increases, and is caused by the physical nature of lenses. In order to allow for various post-processing effects, including depth-of-field, to be applied to images without having to re-render each time, they had to be applied to a rendered image. As such, depth-of-field had to be implemented using the forward-mapped Z-buffer technique. This method requires a buffer containing the depth of each pixel to be saved, as the degree of blur can then be proportional to difference between this depth and the plane in focus. For each pixel, a circle with a diameter equal to this degree of blur can be drawn around it, with an opacity inversely proportional to the circle's area, thereby allowing multiple nearby pixels to be combined in the final image, blurring that region of the image.\
+![HISTORY15](/images/history/history_15.png)

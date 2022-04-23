@@ -64,7 +64,7 @@ void image_load(void)
 
 	image.z_buffer = safe_malloc(image.pixels * sizeof(float));
 	uint32_t count;
-	void *z_buffer;
+	float *z_buffer;
 	TIFFGetField(tif, TIFFTAG_Z_BUFFER, &count, &z_buffer);
 	error_check(count == image.pixels, "Corrupted Z-Buffer.");
 	memcpy(image.z_buffer, z_buffer, image.pixels * sizeof(float));

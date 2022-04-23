@@ -27,7 +27,14 @@ static const char *HELPTEXT =
 	"<input>      (string)            : .tif raw file created by raytracer.\n"
 	"<output>     (string)            : .tif file to which the image will be saved.\n"
 	"OPTIONAL PARAMETERS:\n"
-	"[-b] (float)                     : DEFAULT = 1.0     : brighten.\n";
+	"[-b] (float)                     : DEFAULT = 1.0     : brighten.\n"
+	"[--dof] <scale> <bias>           : Apply depth of field effect (incompatible with --dof-camera).\n"
+	"  <scale> (float)                : \n"
+	"  <bias> (float)                 : \n"
+	"[--dof-camera] <aperture> <focal length> <plane in focus> : Apply depth of field effect (incompatible with --dof).\n"
+	"  <aperture> (float)             : \n"
+	"  <focal length> (float)         : \n"
+	"  <plane in focus> (float)       : \n";
 
 int main(int argc, char *argv[]);
 

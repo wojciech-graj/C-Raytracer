@@ -21,6 +21,9 @@
 			radius *cosf(inclination)                  \
 	}
 
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+
 float sqr(float val);
 float mag2(const v2 vec);
 float mag3(const v3 vec);

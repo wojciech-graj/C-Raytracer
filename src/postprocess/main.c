@@ -34,7 +34,12 @@ static const char *HELPTEXT =
 	"[--dof-camera] <aperture> <focal length> <plane in focus> : Apply depth of field effect (incompatible with --dof).\n"
 	"  <aperture> (float)             : \n"
 	"  <focal length> (float)         : \n"
-	"  <plane in focus> (float)       : \n";
+	"  <plane in focus> (float)       : \n"
+	"[--mist] <start> <depth> <falloff> <color> : Apply colored mist based on distance.\n"
+	"  <start> (float)                : Distance at which mist begins.\n"
+	"  <depth> (float)                : \n"
+	"  <falloff> (\"quad\"|\"lin\"|\"inv-quad\") : Decay rate.\n"
+	"  <color> (float) (float) (float) : \n";
 
 int main(int argc, char *argv[]);
 

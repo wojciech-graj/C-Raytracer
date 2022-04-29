@@ -12,6 +12,7 @@ A raytracer used to render images using a relatively realistic simulation of lig
 - Acceleration using a Bounding Volume Heirarchy
 - Spheres, Triangles, Planes, and Meshes
 - Light attenuation
+- Fog effect
 - Error checking
 - Verbose timestampped logging
 

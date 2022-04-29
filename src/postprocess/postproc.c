@@ -17,13 +17,21 @@
 
 #include "argv.h"
 #include "calc.h"
+#include "error.h"
 #include "image.h"
 #include "mem.h"
 #include "system.h"
 #include "type.h"
 
+enum Falloff {
+	FALLOFF_QUADRATIC,
+	FALLOFF_LINEAR,
+	FALLOFF_INV_QUADRATIC,
+};
+
 void brighten(float factor);
 void depth_of_field(float scale, float bias);
+void mist(float start, float depth, enum Falloff falloff, const v3 color);
 
 void postprocess(void)
 {
@@ -59,6 +67,28 @@ void postprocess(void)
 		float bias = (aperture * focal_length * (z_min - plane_in_focus)) / ((plane_in_focus * focal_length) * z_min);
 		depth_of_field(scale, bias);
 	}
+
+	idx = argv_check_with_args("--mist", 6);
+	if (idx) {
+		float start = atof(myargv[idx + 1]);
+		float depth = atof(myargv[idx + 2]);
+		v3 color = { atof(myargv[idx + 4]), atof(myargv[idx + 5]), atof(myargv[idx + 6]) };
+		enum Falloff falloff;
+		switch (hash_myargv[idx + 3]) {
+		case 2088106052u:
+			falloff = FALLOFF_QUADRATIC;
+			break;
+		case 193412846u:
+			falloff = FALLOFF_LINEAR;
+			break;
+		case 624812280u:
+			falloff = FALLOFF_INV_QUADRATIC;
+			break;
+		default:
+			error("Unrecognized falloff type [%s].", myargv[idx + 3]);
+		}
+		mist(start, depth, falloff, color);
+	}
 }
 
 void brighten(float factor)
@@ -71,7 +101,7 @@ void brighten(float factor)
 	}
 }
 
-void depth_of_field(float scale, float bias)
+void depth_of_field(const float scale, const float bias)
 {
 	printf_log("Applying depth of field with scale [%f] and bias [%f].", (double)scale, (double)bias);
 
@@ -131,4 +161,28 @@ void depth_of_field(float scale, float bias)
 		mul3s(image.raster[i], 1.f / alpha_buffer[i], image.raster[i]);
 
 	free(alpha_buffer);
+}
+
+void mist(const float start, const float depth, const enum Falloff falloff, const v3 color)
+{
+	const float inv_depth = 1.f / depth;
+	size_t i;
+	for (i = 0; i < image.pixels; i++) {
+		const float opacity_factor = clamp((image.z_buffer[i] - start) * inv_depth, 0.f, 1.f);
+		float opacity;
+		switch (falloff) {
+		case FALLOFF_LINEAR:
+			opacity = opacity_factor;
+			break;
+		case FALLOFF_QUADRATIC:
+			opacity = sqr(opacity_factor);
+			break;
+		case FALLOFF_INV_QUADRATIC:
+			opacity = sqrtf(opacity_factor);
+		}
+		v3 adj_mist;
+		mul3s(image.raster[i], 1.f - opacity, image.raster[i]);
+		mul3s(color, opacity, adj_mist);
+		add3v(image.raster[i], adj_mist, image.raster[i]);
+	}
 }
